@@ -75,6 +75,10 @@ function registerSocketHandlers(io) {
 
     console.log(`[Socket] Connected: ${socket.userName} (${userId.slice(0, 8)}) id=${socket.id}`);
 
+    // Join personal user rooms for direct notifications and real-time alerts
+    socket.join(userId);
+    socket.join(`user_${userId}`);
+
     // Confirm connection to client
     socket.emit("connected", { userId });
 

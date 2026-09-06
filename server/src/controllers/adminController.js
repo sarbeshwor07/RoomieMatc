@@ -190,80 +190,94 @@ async function broadcastAnnouncement(req, res) {
     let chatCount = 0;
 
     for (const recipient of recipients) {
-      // 1. In-app Notification
-      if (sendNotification) {
-        const notifId = uuidv4();
-        await run(
-          `INSERT INTO notifications (id, user_id, title, message, type, reference_id, is_read)
-           VALUES (?, ?, ?, ?, 'system', NULL, 0)`,
-          [notifId, recipient.id, broadcastTitle, broadcastBody]
-        );
-        notifCount++;
-
-        // Push real-time notification via Socket.io to user room
-        if (io) {
-          io.to(`user_${recipient.id}`).emit("new_notification", {
-            id: notifId,
-            title: broadcastTitle,
-            message: broadcastBody,
-            type: "system",
-            is_read: 0,
-            created_at: new Date().toISOString(),
-          });
-        }
-      }
-
-      // 2. Direct Chat Message from Admin
-      if (sendChatMessage) {
-        // Find existing conversation between admin and this user (with property_id IS NULL)
-        let conv = await get(
-          `SELECT cp1.conversation_id
-           FROM conversation_participants cp1
-           JOIN conversation_participants cp2
-             ON cp1.conversation_id = cp2.conversation_id
-           JOIN conversations c
-             ON c.id = cp1.conversation_id
-           WHERE cp1.user_id = ?
-             AND cp2.user_id = ?
-             AND c.property_id IS NULL
-           LIMIT 1`,
-          [adminId, recipient.id]
-        );
-
-        let convId = conv?.conversation_id;
-        if (!convId) {
-          convId = uuidv4();
-          await run("INSERT INTO conversations (id, property_id) VALUES (?, NULL)", [convId]);
+      try {
+        // 1. In-app Notification
+        if (sendNotification) {
+          const notifId = uuidv4();
           await run(
-            "INSERT INTO conversation_participants (conversation_id, user_id) VALUES (?, ?), (?, ?)",
-            [convId, adminId, convId, recipient.id]
+            `INSERT INTO notifications (id, user_id, title, message, type, reference_id, is_read)
+             VALUES (?, ?, ?, ?, 'general', NULL, 0)`,
+            [notifId, recipient.id, broadcastTitle, broadcastBody]
           );
+          notifCount++;
+
+          // Push real-time notification via Socket.io to user room
+          if (io) {
+            io.to(recipient.id).emit("new_notification", {
+              id: notifId,
+              title: broadcastTitle,
+              message: broadcastBody,
+              type: "general",
+              is_read: 0,
+              created_at: new Date().toISOString(),
+            });
+            io.to(`user_${recipient.id}`).emit("new_notification", {
+              id: notifId,
+              title: broadcastTitle,
+              message: broadcastBody,
+              type: "general",
+              is_read: 0,
+              created_at: new Date().toISOString(),
+            });
+          }
         }
 
-        const msgId = uuidv4();
-        const fullChatText = title ? `📢 [${broadcastTitle}]\n${broadcastBody}` : `📢 ${broadcastBody}`;
-        await run(
-          `INSERT INTO messages (id, conversation_id, sender_id, body, is_read)
-           VALUES (?, ?, ?, ?, 0)`,
-          [msgId, convId, adminId, fullChatText]
-        );
-        chatCount++;
+        // 2. Direct Chat Message from Admin
+        if (sendChatMessage) {
+          // Find existing conversation between admin and this user (with property_id IS NULL)
+          let conv = await get(
+            `SELECT cp1.conversation_id
+             FROM conversation_participants cp1
+             JOIN conversation_participants cp2
+               ON cp1.conversation_id = cp2.conversation_id
+             JOIN conversations c
+               ON c.id = cp1.conversation_id
+             WHERE cp1.user_id = ?
+               AND cp2.user_id = ?
+               AND c.property_id IS NULL
+             LIMIT 1`,
+            [adminId, recipient.id]
+          );
 
-        // Push real-time message via Socket.io
-        if (io) {
-          const msgPayload = {
-            id: msgId,
-            conversation_id: convId,
-            sender_id: adminId,
-            body: fullChatText,
-            is_read: 0,
-            created_at: new Date().toISOString(),
-            sender_name: req.user.name || "Administrator",
-            sender_image: req.user.profile_image || null,
-          };
-          io.to(`conv_${convId}`).emit("new_message", msgPayload);
-          io.to(`user_${recipient.id}`).emit("new_message", msgPayload);
+          let convId = conv?.conversation_id;
+          if (!convId) {
+            convId = uuidv4();
+            await run("INSERT INTO conversations (id, property_id) VALUES (?, NULL)", [convId]);
+            await run(
+              "INSERT INTO conversation_participants (conversation_id, user_id) VALUES (?, ?), (?, ?)",
+              [convId, adminId, convId, recipient.id]
+            );
+          }
+
+          const msgId = uuidv4();
+          const fullChatText = title ? `📢 [${broadcastTitle}]\n${broadcastBody}` : `📢 ${broadcastBody}`;
+          await run(
+            `INSERT INTO messages (id, conversation_id, sender_id, body, is_read)
+             VALUES (?, ?, ?, ?, 0)`,
+            [msgId, convId, adminId, fullChatText]
+          );
+          chatCount++;
+
+          // Push real-time message via Socket.io
+          if (io) {
+            const msgPayload = {
+              id: msgId,
+              conversation_id: convId,
+              sender_id: adminId,
+              body: fullChatText,
+              is_read: 0,
+              created_at: new Date().toISOString(),
+              sender_name: req.user.name || "Administrator",
+              sender_image: req.user.profile_image || null,
+            };
+            // Broadcast in both conversation room and direct user rooms
+            io.to(convId).emit("new_message", { message: msgPayload });
+            io.to(recipient.id).emit("new_message", { message: msgPayload });
+            io.to(`user_${recipient.id}`).emit("new_message", { message: msgPayload });
+          }
         }
+      } catch (userErr) {
+        console.error(`[BroadcastAnnouncement] Failed for user ${recipient.id}:`, userErr.message);
       }
     }
 
@@ -276,7 +290,7 @@ async function broadcastAnnouncement(req, res) {
     });
   } catch (err) {
     console.error("[BroadcastAnnouncement]", err.message);
-    return res.status(500).json({ error: "Failed to send broadcast announcement." });
+    return res.status(500).json({ error: err.message || "Failed to send broadcast announcement." });
   }
 }
 
