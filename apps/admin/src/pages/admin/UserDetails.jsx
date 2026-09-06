@@ -18,6 +18,7 @@ import {
   apiBlockUser,
   apiUnblockUser,
   apiVerificationDocUrl,
+  apiGetOrCreateConversation,
 } from "@shared/services/api";
 import Avatar from "@shared/components/common/Avatar";
 import Button from "@shared/components/common/Button";
@@ -46,6 +47,22 @@ export const UserDetails = () => {
   const [editFields, setEditFields] = useState({});
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  // Message user state
+  const [msgLoading, setMsgLoading] = useState(false);
+  const handleMessageUser = async () => {
+    if (!user?.id) return;
+    setMsgLoading(true);
+    try {
+      const data = await apiGetOrCreateConversation(user.id);
+      const convId = data.conversation.id;
+      navigate(`/admin/messages?thread=${convId}`);
+    } catch (err) {
+      alert(err.message || "Failed to start conversation with user.");
+    } finally {
+      setMsgLoading(false);
+    }
+  };
 
   useEffect(() => {
     apiGetUser(id)
@@ -310,6 +327,19 @@ export const UserDetails = () => {
                 </span>
                 Edit User
               </Button>
+              {user.role !== "admin" && (
+                <Button
+                  variant="outline"
+                  onClick={handleMessageUser}
+                  disabled={msgLoading}
+                  className="px-4 py-2 text-sm border-primary text-primary hover:bg-primary-container/20"
+                >
+                  <span className="material-symbols-outlined text-[16px] mr-1">
+                    chat
+                  </span>
+                  {msgLoading ? "Opening..." : "Message User"}
+                </Button>
+              )}
               {user.role !== "admin" && (
                 <>
                   {user.is_blocked ? (

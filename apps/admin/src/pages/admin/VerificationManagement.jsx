@@ -19,6 +19,7 @@ import {
   apiListProperties,
   apiVerifyProperty,
   apiDeleteProperty,
+  resolveImageUrl,
 } from "@shared/services/api";
 import StatusBadge from "@shared/components/common/StatusBadge";
 import Button from "@shared/components/common/Button";
@@ -267,8 +268,15 @@ export const VerificationManagement = () => {
               <div key={prop.id} className="bg-surface p-4 rounded-xl border border-outline-variant space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-12 bg-surface-container-high rounded-lg border border-outline-variant/60 overflow-hidden shrink-0">
-                    {(prop.cover_image || prop.images?.[0]) ? (
-                      <img src={prop.cover_image || prop.images[0]} alt={prop.title} className="w-full h-full object-cover" />
+                    {prop.cover_image || prop.images?.[0] ? (
+                      <img
+                        src={resolveImageUrl(prop.cover_image || prop.images[0])}
+                        alt={prop.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-outline">
                         <span className="material-symbols-outlined text-[18px]">home</span>
@@ -298,7 +306,15 @@ export const VerificationManagement = () => {
                 {prop.images && prop.images.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {prop.images.map((img, i) => (
-                      <img key={i} src={img} alt="" className="w-20 h-14 object-cover rounded-lg border border-outline-variant shrink-0" />
+                      <img
+                        key={i}
+                        src={resolveImageUrl(img)}
+                        alt=""
+                        className="w-20 h-14 object-cover rounded-lg border border-outline-variant shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
                     ))}
                   </div>
                 )}

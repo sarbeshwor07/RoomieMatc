@@ -5,9 +5,10 @@ import { useProperties } from "@shared/hooks/useProperties";
 import { useRoommates } from "@shared/hooks/useRoommates";
 import { useApplications } from "@shared/hooks/useApplications";
 import { useMessages } from "@shared/hooks/useMessages";
-import { formatCurrency, formatPriceRange } from "@shared/utils/currency";
+import { formatCurrency } from "@shared/utils/currency";
 import Avatar from "@shared/components/common/Avatar";
 import StatusBadge from "@shared/components/common/StatusBadge";
+import { resolveImageUrl } from "@shared/services/api";
 
 export const TenantDashboard = () => {
   const { currentUser } = useContext(AuthContext);
@@ -142,8 +143,21 @@ export const TenantDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {recommendedProps.map((prop) => (
                 <div key={prop.id} className="bg-surface rounded-xl border border-outline-variant overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
-                  <div className="relative h-40">
-                    <img src={prop.cover_image || prop.images?.[0]} alt={prop.title} className="w-full h-full object-cover" />
+                  <div className="relative h-40 bg-surface-container">
+                    {prop.cover_image || prop.images?.[0] ? (
+                      <img
+                        src={resolveImageUrl(prop.cover_image || prop.images?.[0])}
+                        alt={prop.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-outline">
+                        <span className="material-symbols-outlined text-[36px]">home_work</span>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 bg-surface-container-lowest/90 px-2 py-0.5 rounded-md font-label-sm text-label-sm border border-outline-variant">
                       {prop.type}
                     </div>

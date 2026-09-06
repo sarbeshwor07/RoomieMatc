@@ -8,9 +8,8 @@
  * - Approve / Remove listing
  * - Message the property owner via existing conversation API
  */
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AuthContext } from "@shared/context/AuthContext";
 import {
   apiGetProperty,
   apiVerifyProperty,
@@ -22,6 +21,7 @@ import {
   apiDeletePropertyImage,
   apiSetPrimaryPropertyImage,
   apiGetOrCreateConversation,
+  resolveImageUrl,
 } from "@shared/services/api";
 import StatusBadge from "@shared/components/common/StatusBadge";
 import Button from "@shared/components/common/Button";
@@ -57,7 +57,6 @@ const ALLOWED_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
 export const AdminPropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useContext(AuthContext);
 
   const [property, setProperty] = useState(null);
   const [propertyReports, setPropertyReports] = useState([]);
@@ -303,18 +302,7 @@ export const AdminPropertyDetails = () => {
         property.id,
       );
       const convId = data.conversation.id;
-      setMsgSuccess(
-        `Conversation ${data.created ? "created" : "opened"}. Redirecting...`,
-      );
-      // Admin doesn't have a dedicated messages page; open a simple alert with the conv ID
-      // and navigate to admin notifications as a fallback
-      setTimeout(() => {
-        setMsgSuccess("");
-        // Notify admin user — they can use the client portal to view messages
-        alert(
-          `Conversation started with ${property.owner?.name || "owner"}.\nConversation ID: ${convId}\n\nUse the client portal to view and reply to messages.`,
-        );
-      }, 800);
+      navigate(`/admin/messages?thread=${convId}`);
     } catch (err) {
       setMsgError(err.message || "Failed to start conversation.");
     } finally {
@@ -430,11 +418,14 @@ export const AdminPropertyDetails = () => {
                 <div className="grid grid-cols-4 grid-rows-2 gap-1 h-80">
                   <div className="col-span-4 md:col-span-3 row-span-2 overflow-hidden">
                     <img
-                      src={coverImage}
+                      src={resolveImageUrl(coverImage)}
                       alt={property.title}
                       onClick={() => openLightbox(0)}
                       className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                       title="Click to view full size"
+                      onError={(e) => {
+                        e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                      }}
                     />
                   </div>
                   {(property.images || []).slice(1, 3).map((img, i) => (
@@ -443,11 +434,14 @@ export const AdminPropertyDetails = () => {
                       className="hidden md:block col-span-1 row-span-1 overflow-hidden"
                     >
                       <img
-                        src={img}
+                        src={resolveImageUrl(img)}
                         alt={`${property.title} ${i + 2}`}
                         onClick={() => openLightbox(i + 1)}
                         className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                         title="Click to view full size"
+                        onError={(e) => {
+                          e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                        }}
                       />
                     </div>
                   ))}
@@ -493,7 +487,7 @@ export const AdminPropertyDetails = () => {
                       ? imageData.map((img, idx) => (
                           <div key={img.id} className="relative group shrink-0">
                             <img
-                              src={img.image_path}
+                              src={resolveImageUrl(img.image_path)}
                               alt=""
                               onClick={() => openLightbox(idx)}
                               className={`w-24 h-16 object-cover rounded-lg border-2 transition-all cursor-pointer hover:opacity-90 ${
@@ -502,6 +496,9 @@ export const AdminPropertyDetails = () => {
                                   : "border-outline-variant"
                               }`}
                               title="Click to view full size"
+                              onError={(e) => {
+                                e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                              }}
                             />
                             {img.is_primary && (
                               <span className="absolute top-1 left-1 bg-primary text-on-primary text-[9px] font-bold px-1.5 py-0.5 rounded-full">
@@ -974,7 +971,7 @@ export const AdminPropertyDetails = () => {
       {/* Full-scale image lightbox */}
       {lightboxOpen && (
         <ImageLightbox
-          images={
+          images={(
             imageData.length > 0
               ? imageData.map((i) => i.image_path)
               : (property.images || []).length > 0
@@ -982,7 +979,7 @@ export const AdminPropertyDetails = () => {
                 : coverImage
                   ? [coverImage]
                   : []
-          }
+          ).map(resolveImageUrl)}
           startIndex={lightboxIndex}
           onClose={() => setLightboxOpen(false)}
         />

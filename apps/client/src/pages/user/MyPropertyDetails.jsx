@@ -11,7 +11,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AuthContext } from "@shared/context/AuthContext";
 import { useApplications } from "@shared/hooks/useApplications";
-import { apiGetProperty, apiUpdatePropertyStatus, apiDeleteProperty } from "@shared/services/api";
+import { apiGetProperty, apiUpdatePropertyStatus, apiDeleteProperty, resolveImageUrl } from "@shared/services/api";
 import StatusBadge from "@shared/components/common/StatusBadge";
 import Button from "@shared/components/common/Button";
 import PropertyMap from "@shared/components/common/PropertyMap";
@@ -129,7 +129,14 @@ export const OwnerPropertyDetails = () => {
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant overflow-hidden">
             <div className="relative h-[300px] md:h-[400px] w-full bg-surface-container">
               {coverImage ? (
-                <img alt={property.title} className="w-full h-full object-cover" src={coverImage} />
+                <img
+                  alt={property.title}
+                  className="w-full h-full object-cover"
+                  src={resolveImageUrl(coverImage)}
+                  onError={(e) => {
+                    e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                  }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-outline">
                   <span className="material-symbols-outlined text-[64px]">home_work</span>

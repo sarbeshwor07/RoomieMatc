@@ -1,10 +1,16 @@
 import React, { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "@shared/context/AuthContext";
+import { SocketContext } from "@shared/context/SocketContext";
 import Avatar from "@shared/components/common/Avatar";
 
 export const Sidebar = () => {
   const { currentUser } = useContext(AuthContext);
+  const socketCtx = useContext(SocketContext);
+  const unreadMessagesCount = (socketCtx?.conversations || []).reduce(
+    (sum, c) => sum + (c.unread_count || 0),
+    0
+  );
   const location = useLocation();
 
   if (!currentUser || currentUser.role !== "admin") return null;
@@ -29,7 +35,7 @@ export const Sidebar = () => {
         overflowX: "hidden",
         flexShrink: 0,
       }}
-      className="hidden md:block bg-surface-container-low border-r border-outline-variant"
+      className="hidden md:block admin-sidebar bg-surface-container-low border-r border-outline-variant"
     >
       <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 4 }}>
 
@@ -56,6 +62,15 @@ export const Sidebar = () => {
         <Link to="/admin/dashboard" className={linkClass("/admin/dashboard")}>
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>dashboard</span>
           Dashboard Overview
+        </Link>
+        <Link to="/admin/messages" className={linkClass("/admin/messages")}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chat</span>
+          <span className="flex-1">Messages</span>
+          {unreadMessagesCount > 0 && (
+            <span className="bg-primary text-on-primary text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto">
+              {unreadMessagesCount}
+            </span>
+          )}
         </Link>
         <Link to="/admin/users" className={linkClass("/admin/users")}>
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>group</span>

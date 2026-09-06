@@ -8,7 +8,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { apiListProperties, apiVerifyProperty, apiDeleteProperty } from "@shared/services/api";
+import { apiListProperties, apiVerifyProperty, apiDeleteProperty, resolveImageUrl } from "@shared/services/api";
 import Input from "@shared/components/common/Input";
 import Select from "@shared/components/common/Select";
 import StatusBadge from "@shared/components/common/StatusBadge";
@@ -157,9 +157,12 @@ export const PropertyManagement = () => {
                         <div className="w-14 h-12 bg-surface-container-high rounded border border-outline-variant/60 overflow-hidden shrink-0 relative">
                           {p.cover_image || (p.images && p.images[0]) ? (
                             <img
-                              src={p.cover_image || p.images[0]}
+                              src={resolveImageUrl(p.cover_image || (p.images && p.images[0]))}
                               alt={p.title}
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                              }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-outline">

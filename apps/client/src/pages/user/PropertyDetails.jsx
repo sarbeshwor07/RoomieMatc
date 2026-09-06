@@ -22,6 +22,7 @@ import {
   apiListReviews,
   apiSubmitReview,
   apiSubmitReport,
+  resolveImageUrl,
 } from "@shared/services/api";
 import Avatar from "@shared/components/common/Avatar";
 import Button from "@shared/components/common/Button";
@@ -333,11 +334,14 @@ export const PropertyDetails = () => {
       <section className="rounded-xl overflow-hidden shadow-sm border border-outline-variant bg-surface-container">
         {coverImage ? (
           <img
-            src={coverImage}
+            src={resolveImageUrl(coverImage)}
             alt={property.title}
             onClick={() => openLightbox(0)}
             className="w-full object-contain max-h-[480px] cursor-pointer hover:opacity-95 transition-opacity"
             title="Click to view full size"
+            onError={(e) => {
+              e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+            }}
           />
         ) : (
           <div className="w-full h-64 flex items-center justify-center text-outline">
@@ -354,11 +358,14 @@ export const PropertyDetails = () => {
           {property.images.map((img, i) => (
             <img
               key={i}
-              src={img}
+              src={resolveImageUrl(img)}
               alt={`${property.title} ${i + 1}`}
               onClick={() => openLightbox(i)}
               className="w-28 h-20 object-cover rounded-lg border-2 border-outline-variant shrink-0 cursor-pointer hover:border-primary hover:opacity-90 transition-all"
               title="Click to view full size"
+              onError={(e) => {
+                e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+              }}
             />
           ))}
         </div>

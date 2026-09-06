@@ -711,3 +711,7 @@ export async function apiGetCompatibilityScores() {
   });
   return handleResponse(res);
 }
+
+// Re-export image URL resolver
+export { resolveImageUrl } from "../utils/imageUrl";
+

@@ -13,6 +13,8 @@
  * - Click outside image to close
  */
 import React, { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { resolveImageUrl } from "../../utils/imageUrl";
 
 export function ImageLightbox({ images = [], startIndex = 0, onClose }) {
   const [current, setCurrent] = useState(startIndex);
@@ -32,9 +34,12 @@ export function ImageLightbox({ images = [], startIndex = 0, onClose }) {
 
   if (!images.length) return null;
 
-  return (
+  const currentSrc = resolveImageUrl(images[current]);
+
+  const content = (
     <div
-      className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center"
+      className="fixed inset-0 z-[99999] bg-black/90 flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh" }}
       onClick={onClose}
       aria-modal="true"
       role="dialog"
@@ -68,11 +73,14 @@ export function ImageLightbox({ images = [], startIndex = 0, onClose }) {
 
       {/* Image — object-contain preserves aspect ratio, no cropping */}
       <img
-        src={images[current]}
+        src={currentSrc}
         alt={`Image ${current + 1}`}
-        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+        className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         draggable={false}
+        onError={(e) => {
+          e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+        }}
       />
 
       {/* Next button */}
@@ -101,13 +109,27 @@ export function ImageLightbox({ images = [], startIndex = 0, onClose }) {
               }`}
               aria-label={`View image ${i + 1}`}
             >
-              <img src={img} alt="" className="w-full h-full object-cover" draggable={false} />
+              <img
+                src={resolveImageUrl(img)}
+                alt=""
+                className="w-full h-full object-cover"
+                draggable={false}
+                onError={(e) => {
+                  e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                }}
+              />
             </button>
           ))}
         </div>
       )}
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return createPortal(content, document.body);
+  }
+  return content;
 }
 
 export default ImageLightbox;
+

@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { apiListFavourites, apiRemoveFavourite } from "@shared/services/api";
+import { apiListFavourites, apiRemoveFavourite, resolveImageUrl } from "@shared/services/api";
 import { formatCurrency } from "@shared/utils/currency";
 import EmptyState from "@shared/components/common/EmptyState";
 
@@ -91,12 +91,19 @@ export const Favorites = () => {
               >
                 <div className="relative h-48 w-full bg-surface-container">
                   {imgSrc ? (
-                    <img src={imgSrc} alt={prop.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-outline">
-                      <span className="material-symbols-outlined text-[48px]">home_work</span>
-                    </div>
-                  )}
+                    <img
+                      src={resolveImageUrl(imgSrc)}
+                      alt={prop.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.classList.remove("hidden");
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full flex items-center justify-center text-outline ${imgSrc ? "hidden" : ""}`}>
+                    <span className="material-symbols-outlined text-[48px]">home_work</span>
+                  </div>
 
                   <button
                     onClick={e => handleRemove(prop.id, e)}

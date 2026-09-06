@@ -24,7 +24,8 @@
  *  disabled        boolean
  *  className       string
  */
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState } from "react";
+import { resolveImageUrl } from "../../utils/imageUrl";
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ACCEPTED_DOC_TYPES   = [...ACCEPTED_IMAGE_TYPES, "application/pdf"];
@@ -120,7 +121,7 @@ export function SingleImageUpload({
     }
   };
 
-  const displayUrl = preview && preview !== "pdf" ? preview : currentImageUrl;
+  const displayUrl = preview && preview !== "pdf" ? preview : resolveImageUrl(currentImageUrl);
   const hasPending = !!pendingFile;
   const hasCurrent = !!currentImageUrl;
 
@@ -322,11 +323,14 @@ export function MultipleImageUpload({
         {currentImages.map((img) => (
           <div key={img.id} className="relative group">
             <img
-              src={img.image_path}
+              src={resolveImageUrl(img.image_path)}
               alt="Property"
               className={`w-24 h-20 object-cover rounded-xl border-2 transition-all ${
                 img.is_primary ? "border-primary shadow-md" : "border-outline-variant"
               }`}
+              onError={(e) => {
+                e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+              }}
             />
             {img.is_primary && (
               <span className="absolute top-1 left-1 bg-primary text-on-primary text-[9px] font-bold px-1.5 py-0.5 rounded-full">

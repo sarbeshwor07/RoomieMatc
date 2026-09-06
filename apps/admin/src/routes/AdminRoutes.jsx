@@ -19,6 +19,7 @@ import ReportsManagement from "../pages/admin/ReportsManagement";
 import ReportsDetails from "../pages/admin/ReportsDetails";
 import Analytics from "../pages/admin/Analytics";
 import AdminNotifications from "../pages/admin/AdminNotifications";
+import AdminMessages from "../pages/admin/AdminMessages";
 
 export const AdminRoutes = () => {
   return (
@@ -33,6 +34,7 @@ export const AdminRoutes = () => {
         <Route element={<AdminLayout />}>
           <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/messages" element={<AdminMessages />} />
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/users/:id" element={<UserDetails />} />
           <Route path="/admin/properties" element={<PropertyManagement />} />

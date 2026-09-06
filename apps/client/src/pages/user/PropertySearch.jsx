@@ -6,6 +6,7 @@ import {
   apiAddFavourite,
   apiRemoveFavourite,
   apiGetFavouriteStatus,
+  resolveImageUrl,
 } from "@shared/services/api";
 import { formatCurrency } from "@shared/utils/currency";
 import Input from "@shared/components/common/Input";
@@ -273,7 +274,7 @@ export const PropertySearch = () => {
                   <div className="relative h-48 w-full bg-surface-container">
                     {imgSrc ? (
                       <img
-                        src={imgSrc}
+                        src={resolveImageUrl(imgSrc)}
                         alt={prop.title}
                         onClick={(e) =>
                           openLightbox(
@@ -283,8 +284,11 @@ export const PropertySearch = () => {
                             e,
                           )
                         }
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         title="Click to view full size"
+                        onError={(e) => {
+                          e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-outline">

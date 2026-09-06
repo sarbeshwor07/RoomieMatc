@@ -6,11 +6,10 @@
  * All field names use snake_case from API.
  * getOrCreateThread is awaited (it's async).
  */
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AuthContext } from "@shared/context/AuthContext";
 import { useMessages } from "@shared/hooks/useMessages";
-import { apiGetApplication, apiCancelApplication } from "@shared/services/api";
+import { apiGetApplication, apiCancelApplication, resolveImageUrl } from "@shared/services/api";
 import { formatCurrency } from "@shared/utils/currency";
 import StatusBadge from "@shared/components/common/StatusBadge";
 import Button from "@shared/components/common/Button";
@@ -19,7 +18,6 @@ import Avatar from "@shared/components/common/Avatar";
 export const ApplicationDetails = () => {
   const { id }     = useParams();
   const navigate   = useNavigate();
-  const { currentUser } = useContext(AuthContext);
   const { getOrCreateThread } = useMessages();
 
   const [application, setApplication] = useState(null);
@@ -80,7 +78,8 @@ export const ApplicationDetails = () => {
   const propCity    = application.property?.city   || "";
   const propPrice   = application.property_price   || application.property?.price || 0;
   const appliedDate = application.applied_at;
-  const coverImage  = application.property?.cover_image || application.property?.images?.[0] || null;
+  const rawCoverImage = application.property?.cover_image || application.property?.images?.[0] || null;
+  const coverImage  = rawCoverImage ? resolveImageUrl(rawCoverImage) : null;
 
   const timelineSteps = [
     {
@@ -127,12 +126,20 @@ export const ApplicationDetails = () => {
         <section className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant overflow-hidden">
           <div className="flex flex-col md:flex-row">
             <div className="w-full md:w-1/3 h-48 md:h-auto relative bg-surface-container">
-              {coverImage
-                ? <img alt={propTitle} className="absolute inset-0 w-full h-full object-cover" src={coverImage} />
-                : <div className="absolute inset-0 flex items-center justify-center text-outline">
-                    <span className="material-symbols-outlined text-[48px]">home_work</span>
-                  </div>
-              }
+              {coverImage ? (
+                <img
+                  alt={propTitle}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  src={coverImage}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-outline">
+                  <span className="material-symbols-outlined text-[48px]">home_work</span>
+                </div>
+              )}
             </div>
             <div className="p-6 flex flex-col justify-between w-full md:w-2/3">
               <div>

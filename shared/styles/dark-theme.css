@@ -85,6 +85,53 @@
   z-index: 2;
 }
 
+/* =========================================================================
+   DARK THEME STRUCTURAL LAYOUT RESET
+   ========================================================================= */
+.dark aside,
+.dark header,
+.dark main,
+.dark nav,
+.dark .admin-sidebar,
+.dark .admin-navbar,
+.dark .client-sidebar,
+.dark .client-navbar,
+.dark aside.bg-surface-container-low,
+.dark header.bg-surface-container-low,
+.dark main.bg-surface {
+  transform: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+.dark aside:hover,
+.dark header:hover,
+.dark main:hover,
+.dark nav:hover,
+.dark .admin-sidebar:hover,
+.dark .admin-navbar:hover,
+.dark .client-sidebar:hover,
+.dark .client-navbar:hover,
+.dark aside.bg-surface-container-low:hover,
+.dark header.bg-surface-container-low:hover,
+.dark main.bg-surface:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.dark aside::after,
+.dark header::after,
+.dark main::after,
+.dark nav::after,
+.dark aside::before,
+.dark header::before,
+.dark main::before,
+.dark nav::before {
+  display: none !important;
+  content: none !important;
+}
+
 /* Text colors */
 .dark .text-on-surface {
   color: var(--dark-text) !important;

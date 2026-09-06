@@ -11,8 +11,7 @@ import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "@shared/context/AuthContext";
 import { useProperties } from "@shared/hooks/useProperties";
-import { apiUpdatePropertyStatus } from "@shared/services/api";
-import Button from "@shared/components/common/Button";
+import { apiUpdatePropertyStatus, resolveImageUrl } from "@shared/services/api";
 import StatusBadge from "@shared/components/common/StatusBadge";
 import EmptyState from "@shared/components/common/EmptyState";
 
@@ -101,12 +100,19 @@ export const MyProperties = () => {
                 {/* Image banner */}
                 <div className="relative h-44 bg-surface-container">
                   {imgSrc ? (
-                    <img src={imgSrc} alt={prop.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-outline">
-                      <span className="material-symbols-outlined text-[48px]">home_work</span>
-                    </div>
-                  )}
+                    <img
+                      src={resolveImageUrl(imgSrc)}
+                      alt={prop.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.classList.remove("hidden");
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full flex items-center justify-center text-outline ${imgSrc ? "hidden" : ""}`}>
+                    <span className="material-symbols-outlined text-[48px]">home_work</span>
+                  </div>
 
                   <div className="absolute top-3 left-3">
                     <StatusBadge status={prop.status} />

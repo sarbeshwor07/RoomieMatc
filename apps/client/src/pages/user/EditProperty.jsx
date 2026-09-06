@@ -14,6 +14,7 @@ import {
   apiUploadPropertyImages,
   apiDeletePropertyImage,
   apiSetPrimaryPropertyImage,
+  resolveImageUrl,
 } from "@shared/services/api";
 
 const MAX_IMAGES = 6;
@@ -374,9 +375,12 @@ export const EditProperty = () => {
             {serverImages.map((img) => (
               <div key={img.id} className="relative group">
                 <img
-                  src={img.image_path}
+                  src={resolveImageUrl(img.image_path)}
                   alt=""
                   className={`w-24 h-20 object-cover rounded-xl border-2 transition-all ${img.is_primary ? "border-primary shadow-md" : "border-outline-variant"}`}
+                  onError={(e) => {
+                    e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800";
+                  }}
                 />
                 {img.is_primary === 1 && (
                   <span className="absolute top-1 left-1 bg-primary text-on-primary text-[9px] font-bold px-1.5 py-0.5 rounded-full">
