@@ -62,6 +62,15 @@ export const Navbar = () => {
 
           {currentUser && (
             <div className="flex items-center gap-4">
+              {/* Contact Admin Support */}
+              <Link
+                to="/user/messages?contact=admin"
+                className="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors relative"
+                title="Contact Support / Administrator"
+              >
+                <span className="material-symbols-outlined">support_agent</span>
+              </Link>
+
               {/* Notifications */}
               <Link
                 to="/user/notifications"

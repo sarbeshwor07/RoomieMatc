@@ -712,6 +712,39 @@ export async function apiGetCompatibilityScores() {
   return handleResponse(res);
 }
 
+// ── Support / Contact Admin ──────────────────────────────────────────────────
+/** Connect or get conversation with the system administrator. */
+export async function apiContactAdmin() {
+  const res = await fetch(`${BASE_URL}/messages/support`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+  });
+  return handleResponse(res);
+}
+
+// ── Admin Broadcast ──────────────────────────────────────────────────────────
+/** Admin: Send broadcast announcement to all or filtered users. */
+export async function apiSendBroadcast({
+  title,
+  message,
+  target = "all",
+  sendNotification = true,
+  sendChatMessage = true,
+}) {
+  const res = await fetch(`${BASE_URL}/admin/broadcast`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      title,
+      message,
+      target,
+      sendNotification,
+      sendChatMessage,
+    }),
+  });
+  return handleResponse(res);
+}
+
 // Re-export image URL resolver
 export { resolveImageUrl } from "../utils/imageUrl";
 

@@ -14,6 +14,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { AuthContext } from "@shared/context/AuthContext";
 import { SocketContext } from "@shared/context/SocketContext";
 import { useMessages } from "@shared/hooks/useMessages";
+import { apiListUsers, apiSendBroadcast } from "@shared/services/api";
+import { Modal } from "@shared/components/common/Modal";
 import Avatar from "@shared/components/common/Avatar";
 import Button from "@shared/components/common/Button";
 
@@ -28,6 +30,8 @@ export const AdminMessages = () => {
     openConversation,
     sendMessage,
     getThread,
+    getOrCreateThread,
+    reloadConversations,
   } = useMessages();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,6 +41,27 @@ export const AdminMessages = () => {
   const [typingTimeout, setTypingTimeout] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── Platform user search state (when searching in sidebar) ───────────────
+  const [matchingUsers, setMatchingUsers] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+
+  // ── Start New Chat Modal state ──────────────────────────────────────────
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+  const [userModalSearch, setUserModalSearch] = useState("");
+  const [startingChatUserId, setStartingChatUserId] = useState(null);
+
+  // ── Broadcast Modal state ───────────────────────────────────────────────
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastTarget, setBroadcastTarget] = useState("all");
+  const [broadcastNotif, setBroadcastNotif] = useState(true);
+  const [broadcastChat, setBroadcastChat] = useState(true);
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [broadcastFeedback, setBroadcastFeedback] = useState("");
 
   // Open thread from URL param or default to first thread
   useEffect(() => {
@@ -102,6 +127,108 @@ export const AdminMessages = () => {
     (u) => u.userId !== currentUser?.id
   );
 
+  // ── Live platform user search matching searchQuery ───────────────────────
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query || query.length < 2) {
+      setMatchingUsers([]);
+      setSearchingUsers(false);
+      return;
+    }
+
+    setSearchingUsers(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiListUsers({ search: query, limit: 8 });
+        const list = (res.users || []).filter((u) => u.id !== currentUser?.id);
+        setMatchingUsers(list);
+      } catch (err) {
+        console.error("Failed to search platform users:", err);
+        setMatchingUsers([]);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, currentUser?.id]);
+
+  // ── Load users when New Chat modal opens or search changes ───────────────
+  useEffect(() => {
+    if (!isNewChatOpen) return;
+    let isMounted = true;
+    const fetchUsers = async () => {
+      setLoadingAllUsers(true);
+      try {
+        const params = { limit: 50 };
+        if (userModalSearch.trim()) params.search = userModalSearch.trim();
+        const res = await apiListUsers(params);
+        if (isMounted) {
+          setAllUsers((res.users || []).filter((u) => u.id !== currentUser?.id));
+        }
+      } catch (err) {
+        console.error("Failed to fetch users for modal:", err);
+      } finally {
+        if (isMounted) setLoadingAllUsers(false);
+      }
+    };
+    fetchUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [isNewChatOpen, userModalSearch, currentUser?.id]);
+
+  // ── Initiate chat with any platform user ─────────────────────────────────
+  const handleStartChatWithUser = async (user) => {
+    if (!user?.id) return;
+    setStartingChatUserId(user.id);
+    try {
+      const convId = await getOrCreateThread(user.id);
+      if (convId) {
+        setIsNewChatOpen(false);
+        setSearchQuery("");
+        setMatchingUsers([]);
+        handleSelectThread(convId);
+        setTimeout(() => inputRef.current?.focus(), 200);
+      }
+    } catch (err) {
+      console.error("Failed to start chat with user:", err);
+    } finally {
+      setStartingChatUserId(null);
+    }
+  };
+
+  // ── Send broadcast announcement ──────────────────────────────────────────
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastMessage.trim()) return;
+    setSendingBroadcast(true);
+    setBroadcastFeedback("");
+    try {
+      const res = await apiSendBroadcast({
+        title: broadcastTitle.trim() || "Platform Announcement",
+        message: broadcastMessage.trim(),
+        target: broadcastTarget,
+        sendNotification: broadcastNotif,
+        sendChatMessage: broadcastChat,
+      });
+      setBroadcastFeedback(`Broadcast successfully sent to ${res.recipientsCount || res.sentCount || 0} users!`);
+      if (reloadConversations) {
+        reloadConversations();
+      }
+      setTimeout(() => {
+        setIsBroadcastOpen(false);
+        setBroadcastFeedback("");
+        setBroadcastTitle("");
+        setBroadcastMessage("");
+      }, 1500);
+    } catch (err) {
+      setBroadcastFeedback(err.message || "Failed to send broadcast.");
+    } finally {
+      setSendingBroadcast(false);
+    }
+  };
+
   // Filter threads by search query
   const filteredThreads = threads.filter((t) => {
     if (!searchQuery.trim()) return true;
@@ -141,6 +268,24 @@ export const AdminMessages = () => {
             </span>
           </div>
 
+          {/* Action buttons: New Chat & Broadcast */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setIsNewChatOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">add_comment</span>
+              + New Chat
+            </button>
+            <button
+              onClick={() => setIsBroadcastOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">campaign</span>
+              Broadcast
+            </button>
+          </div>
+
           {/* Search box */}
           <div className="relative">
             <span className="material-symbols-outlined text-[18px] text-outline absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -150,11 +295,78 @@ export const AdminMessages = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full bg-surface-container border border-outline-variant rounded-lg pl-9 pr-3 py-1.5 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-colors"
+              placeholder="Search conversations or users..."
+              className="w-full bg-surface-container border border-outline-variant rounded-lg pl-9 pr-8 py-1.5 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-colors"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Matching Platform Users (live search) */}
+        {searchQuery.trim().length >= 2 && (
+          <div className="p-3 bg-primary/5 border-b border-outline-variant/60">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
+                <span className="material-symbols-outlined text-[15px]">person_search</span>
+                Platform Users ({matchingUsers.length})
+              </span>
+              {searchingUsers && (
+                <span className="material-symbols-outlined text-[14px] animate-spin text-primary">
+                  progress_activity
+                </span>
+              )}
+            </div>
+
+            {matchingUsers.length === 0 && !searchingUsers ? (
+              <p className="text-[11px] text-on-surface-variant italic">No registered user matches "{searchQuery}".</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {matchingUsers.map((u) => {
+                  const isStarting = startingChatUserId === u.id;
+                  return (
+                    <div
+                      key={u.id}
+                      className="p-2 rounded-xl bg-surface-container-lowest border border-outline-variant/60 flex items-center justify-between gap-2 shadow-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar src={u.profile_image} name={u.name} size="sm" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-on-surface truncate">{u.name}</p>
+                          <div className="flex items-center gap-1 text-[10px] text-on-surface-variant">
+                            <span className="capitalize font-semibold text-primary">{u.role}</span>
+                            <span>•</span>
+                            <span className="truncate max-w-[110px]">{u.email}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleStartChatWithUser(u)}
+                        disabled={isStarting}
+                        className="px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold hover:bg-primary/90 shrink-0 transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                      >
+                        {isStarting ? (
+                          <span className="material-symbols-outlined text-[13px] animate-spin">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-[13px]">chat</span>
+                        )}
+                        Chat
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Threads List */}
         <div className="flex-grow overflow-y-auto divide-y divide-outline-variant/60">
@@ -168,9 +380,11 @@ export const AdminMessages = () => {
           ) : filteredThreads.length === 0 ? (
             <div className="p-8 text-center text-sm text-on-surface-variant space-y-2">
               <span className="material-symbols-outlined text-[36px] text-outline">inbox</span>
-              <p>{searchQuery ? "No matching conversations found." : "No client conversations yet."}</p>
+              <p>{searchQuery ? "No conversation threads found." : "No client conversations yet."}</p>
               <p className="text-xs text-outline">
-                You can start a conversation directly from any user or property page.
+                {searchQuery
+                  ? "Use the Platform Users section above or click + New Chat to start talking to this user."
+                  : "Click + New Chat above to message any tenant or landlord."}
               </p>
             </div>
           ) : (
@@ -421,6 +635,230 @@ export const AdminMessages = () => {
           </div>
         )}
       </div>
+
+      {/* ── Start New Chat Modal ────────────────────────────────────── */}
+      <Modal
+        isOpen={isNewChatOpen}
+        onClose={() => {
+          setIsNewChatOpen(false);
+          setUserModalSearch("");
+        }}
+        title="Start Direct Chat with User"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-on-surface-variant">
+            Select any registered tenant or property owner across the platform to initiate a direct administrator conversation.
+          </p>
+
+          <div className="relative">
+            <span className="material-symbols-outlined text-[18px] text-outline absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              search
+            </span>
+            <input
+              type="text"
+              value={userModalSearch}
+              onChange={(e) => setUserModalSearch(e.target.value)}
+              placeholder="Search users by name or email..."
+              className="w-full bg-surface-container border border-outline-variant rounded-xl pl-9 pr-3 py-2 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          <div className="max-h-80 overflow-y-auto divide-y divide-outline-variant/60 border border-outline-variant rounded-xl bg-surface-container-lowest">
+            {loadingAllUsers ? (
+              <div className="p-8 text-center text-xs text-on-surface-variant flex items-center justify-center gap-2">
+                <span className="material-symbols-outlined text-[18px] animate-spin text-primary">
+                  progress_activity
+                </span>
+                Loading platform users...
+              </div>
+            ) : allUsers.length === 0 ? (
+              <div className="p-8 text-center text-xs text-on-surface-variant">
+                No users found.
+              </div>
+            ) : (
+              allUsers.map((u) => {
+                const isStarting = startingChatUserId === u.id;
+                return (
+                  <div
+                    key={u.id}
+                    className="p-3 flex items-center justify-between gap-3 hover:bg-surface-container-low transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar src={u.profile_image} name={u.name} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-on-surface truncate">{u.name}</p>
+                        <p className="text-xs text-outline truncate">{u.email}</p>
+                        <span className="inline-block mt-0.5 text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant">
+                          {u.role}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleStartChatWithUser(u)}
+                      disabled={isStarting}
+                      className="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 shrink-0 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isStarting ? (
+                        <span className="material-symbols-outlined text-[14px] animate-spin">
+                          progress_activity
+                        </span>
+                      ) : (
+                        <span className="material-symbols-outlined text-[14px]">send</span>
+                      )}
+                      Message
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Broadcast Announcement Modal ────────────────────────────── */}
+      <Modal
+        isOpen={isBroadcastOpen}
+        onClose={() => {
+          if (!sendingBroadcast) {
+            setIsBroadcastOpen(false);
+            setBroadcastFeedback("");
+          }
+        }}
+        title="Broadcast Announcement to Platform Users"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsBroadcastOpen(false)}
+              disabled={sendingBroadcast}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSendBroadcast}
+              disabled={
+                sendingBroadcast ||
+                !broadcastMessage.trim() ||
+                (!broadcastNotif && !broadcastChat)
+              }
+              className="text-xs flex items-center gap-1.5"
+            >
+              {sendingBroadcast ? (
+                <>
+                  <span className="material-symbols-outlined text-[16px] animate-spin">
+                    progress_activity
+                  </span>
+                  Sending Broadcast...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[16px]">campaign</span>
+                  Send Broadcast
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-on-surface-variant">
+            Send an official platform announcement. You can deliver this announcement as in-app notifications, direct messages in chat threads, or both.
+          </p>
+
+          {broadcastFeedback && (
+            <div
+              className={`p-3 rounded-xl text-xs font-semibold ${
+                broadcastFeedback.includes("success")
+                  ? "bg-secondary-container/50 text-secondary border border-secondary/30"
+                  : "bg-error-container/50 text-error border border-error/30"
+              }`}
+            >
+              {broadcastFeedback}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-on-surface mb-1.5">
+              Target Audience
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "all", label: "All Users" },
+                { id: "user", label: "Tenants Only" },
+                { id: "landlord", label: "Owners Only" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setBroadcastTarget(t.id)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                    broadcastTarget === t.id
+                      ? "border-primary bg-primary text-on-primary shadow-sm"
+                      : "border-outline-variant bg-surface-container text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-on-surface mb-1">
+              Announcement Title
+            </label>
+            <input
+              type="text"
+              value={broadcastTitle}
+              onChange={(e) => setBroadcastTitle(e.target.value)}
+              placeholder="e.g. Platform Notice & Maintenance"
+              className="w-full bg-surface-container border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-on-surface mb-1">
+              Announcement Message *
+            </label>
+            <textarea
+              rows={4}
+              required
+              value={broadcastMessage}
+              onChange={(e) => setBroadcastMessage(e.target.value)}
+              placeholder="Write your announcement message here..."
+              className="w-full bg-surface-container border border-outline-variant rounded-xl p-3 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary resize-none"
+            />
+          </div>
+
+          <div className="space-y-2 pt-1 border-t border-outline-variant">
+            <span className="block text-[11px] font-bold text-on-surface uppercase tracking-wider">
+              Delivery Channels
+            </span>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-on-surface">
+              <input
+                type="checkbox"
+                checked={broadcastNotif}
+                onChange={(e) => setBroadcastNotif(e.target.checked)}
+                className="rounded text-primary focus:ring-primary h-4 w-4"
+              />
+              <span>Send In-App Notification (bell icon alerts)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-on-surface">
+              <input
+                type="checkbox"
+                checked={broadcastChat}
+                onChange={(e) => setBroadcastChat(e.target.checked)}
+                className="rounded text-primary focus:ring-primary h-4 w-4"
+              />
+              <span>Send Direct Support Chat Message (creates/updates chat thread)</span>
+            </label>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

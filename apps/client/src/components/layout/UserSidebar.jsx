@@ -145,6 +145,10 @@ export const UserSidebar = () => {
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chat</span>
           Messages
         </Link>
+        <Link to="/user/messages?contact=admin" className={linkClass("/user/messages?contact=admin")}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>support_agent</span>
+          Contact Admin
+        </Link>
         <Link to="/user/preferences" className={linkClass("/user/preferences")}>
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>tune</span>
           Lifestyle Quiz

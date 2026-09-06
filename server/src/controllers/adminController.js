@@ -5,7 +5,8 @@
  *   GET /api/admin/stats      Summary counts for the dashboard
  *   GET /api/admin/activity   Recent activity feed (latest users, properties, apps)
  */
-const { all, get } = require("../database/db");
+const { v4: uuidv4 } = require("uuid");
+const { all, get, run } = require("../database/db");
 
 function isoDate(v) {
   if (!v) return null;
@@ -143,4 +144,140 @@ async function getActivity(req, res) {
   }
 }
 
-module.exports = { getStats, getActivity };
+// ── POST /api/admin/broadcast ─────────────────────────────────────────────
+// Admin sends an announcement / broadcast to all or targeted clients
+async function broadcastAnnouncement(req, res) {
+  try {
+    const adminId = req.user.id;
+    const {
+      title,
+      message,
+      target = "all", // "all" | "tenants" | "owners"
+      sendNotification = true,
+      sendChatMessage = true,
+    } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Broadcast message text is required." });
+    }
+
+    const broadcastTitle = (title || "RoomieMatch Announcement").trim();
+    const broadcastBody = message.trim();
+
+    // Determine target users (excluding the admin themselves)
+    let query = "SELECT id, name, email FROM users WHERE role != 'admin' AND is_blocked = 0";
+    if (target === "owners" || target === "landlord") {
+      query = `SELECT DISTINCT u.id, u.name, u.email
+               FROM users u
+               JOIN properties p ON p.owner_id = u.id
+               WHERE u.role != 'admin' AND u.is_blocked = 0`;
+    } else if (target === "tenants" || target === "user") {
+      query = `SELECT u.id, u.name, u.email
+               FROM users u
+               WHERE u.role != 'admin' AND u.is_blocked = 0
+                 AND u.id NOT IN (SELECT DISTINCT owner_id FROM properties)`;
+    }
+
+    const recipients = await all(query);
+    if (recipients.length === 0) {
+      return res.json({ message: "No recipients found for this target audience.", count: 0 });
+    }
+
+    const io = req.app.get("io");
+
+    // Process delivery
+    let notifCount = 0;
+    let chatCount = 0;
+
+    for (const recipient of recipients) {
+      // 1. In-app Notification
+      if (sendNotification) {
+        const notifId = uuidv4();
+        await run(
+          `INSERT INTO notifications (id, user_id, title, message, type, reference_id, is_read)
+           VALUES (?, ?, ?, ?, 'system', NULL, 0)`,
+          [notifId, recipient.id, broadcastTitle, broadcastBody]
+        );
+        notifCount++;
+
+        // Push real-time notification via Socket.io to user room
+        if (io) {
+          io.to(`user_${recipient.id}`).emit("new_notification", {
+            id: notifId,
+            title: broadcastTitle,
+            message: broadcastBody,
+            type: "system",
+            is_read: 0,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 2. Direct Chat Message from Admin
+      if (sendChatMessage) {
+        // Find existing conversation between admin and this user (with property_id IS NULL)
+        let conv = await get(
+          `SELECT cp1.conversation_id
+           FROM conversation_participants cp1
+           JOIN conversation_participants cp2
+             ON cp1.conversation_id = cp2.conversation_id
+           JOIN conversations c
+             ON c.id = cp1.conversation_id
+           WHERE cp1.user_id = ?
+             AND cp2.user_id = ?
+             AND c.property_id IS NULL
+           LIMIT 1`,
+          [adminId, recipient.id]
+        );
+
+        let convId = conv?.conversation_id;
+        if (!convId) {
+          convId = uuidv4();
+          await run("INSERT INTO conversations (id, property_id) VALUES (?, NULL)", [convId]);
+          await run(
+            "INSERT INTO conversation_participants (conversation_id, user_id) VALUES (?, ?), (?, ?)",
+            [convId, adminId, convId, recipient.id]
+          );
+        }
+
+        const msgId = uuidv4();
+        const fullChatText = title ? `📢 [${broadcastTitle}]\n${broadcastBody}` : `📢 ${broadcastBody}`;
+        await run(
+          `INSERT INTO messages (id, conversation_id, sender_id, body, is_read)
+           VALUES (?, ?, ?, ?, 0)`,
+          [msgId, convId, adminId, fullChatText]
+        );
+        chatCount++;
+
+        // Push real-time message via Socket.io
+        if (io) {
+          const msgPayload = {
+            id: msgId,
+            conversation_id: convId,
+            sender_id: adminId,
+            body: fullChatText,
+            is_read: 0,
+            created_at: new Date().toISOString(),
+            sender_name: req.user.name || "Administrator",
+            sender_image: req.user.profile_image || null,
+          };
+          io.to(`conv_${convId}`).emit("new_message", msgPayload);
+          io.to(`user_${recipient.id}`).emit("new_message", msgPayload);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Broadcast successfully sent to ${recipients.length} recipients.`,
+      recipientsCount: recipients.length,
+      notificationsSent: notifCount,
+      chatMessagesSent: chatCount,
+    });
+  } catch (err) {
+    console.error("[BroadcastAnnouncement]", err.message);
+    return res.status(500).json({ error: "Failed to send broadcast announcement." });
+  }
+}
+
+module.exports = { getStats, getActivity, broadcastAnnouncement };

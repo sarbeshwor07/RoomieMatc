@@ -14,6 +14,7 @@ import { SocketContext } from "@shared/context/SocketContext";
 import { useMessages } from "@shared/hooks/useMessages";
 import Avatar from "@shared/components/common/Avatar";
 import Button from "@shared/components/common/Button";
+import { apiContactAdmin } from "@shared/services/api";
 
 export const Messages = () => {
   const { currentUser } = useContext(AuthContext);
@@ -33,11 +34,35 @@ export const Messages = () => {
   const [activeThreadId, setActiveThreadId] = useState("");
   const [inputText, setInputText]           = useState("");
   const [typingTimeout, setTypingTimeout]   = useState(null);
+  const [connectingAdmin, setConnectingAdmin] = useState(false);
   const messagesEndRef                      = useRef(null);
   const inputRef                            = useRef(null);
 
-  // Open thread from URL param or default to first thread
+  const handleContactAdmin = useCallback(async () => {
+    setConnectingAdmin(true);
+    try {
+      const data = await apiContactAdmin();
+      if (data?.conversation?.id) {
+        setActiveThreadId(data.conversation.id);
+        setSearchParams({ thread: data.conversation.id });
+        openConversation(data.conversation.id);
+        setTimeout(() => inputRef.current?.focus(), 150);
+      }
+    } catch (err) {
+      alert(err.message || "Failed to connect with RoomieMatch administrator.");
+    } finally {
+      setConnectingAdmin(false);
+    }
+  }, [openConversation, setSearchParams]);
+
+  // Open thread from URL param or default to first thread or handle ?contact=admin
   useEffect(() => {
+    const contactParam = searchParams.get("contact");
+    if (contactParam === "admin") {
+      handleContactAdmin();
+      return;
+    }
+
     const threadParam = searchParams.get("thread");
     if (threadParam && threadParam !== activeThreadId) {
       setActiveThreadId(threadParam);
@@ -48,7 +73,7 @@ export const Messages = () => {
       openConversation(firstId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threads, searchParams]);
+  }, [threads, searchParams, handleContactAdmin]);
 
   // Auto-scroll on every new message
   useEffect(() => {
@@ -114,6 +139,21 @@ export const Messages = () => {
           </span>
         </div>
 
+        {/* Contact Support / Admin Banner */}
+        <div className="p-3 border-b border-outline-variant bg-primary-container/10">
+          <button
+            onClick={handleContactAdmin}
+            disabled={connectingAdmin}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-60"
+          >
+            <span className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">support_agent</span>
+              <span>{connectingAdmin ? "Connecting to Support..." : "Chat with RoomieMatch Admin"}</span>
+            </span>
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </button>
+        </div>
+
         <div className="flex-grow overflow-y-auto divide-y divide-outline-variant/60">
           {loadingConversations && threads.length === 0 ? (
             <div className="p-8 text-center text-body-md text-on-surface-variant flex items-center justify-center gap-2">
@@ -121,8 +161,17 @@ export const Messages = () => {
               Loading...
             </div>
           ) : threads.length === 0 ? (
-            <div className="p-8 text-center text-body-md text-on-surface-variant">
-              No conversations yet. Start one from a property or roommate profile.
+            <div className="p-8 text-center text-body-md text-on-surface-variant flex flex-col items-center gap-3">
+              <span className="material-symbols-outlined text-[36px] text-outline">forum</span>
+              <p>No active conversations yet.</p>
+              <button
+                onClick={handleContactAdmin}
+                disabled={connectingAdmin}
+                className="px-4 py-2 bg-surface-container-high hover:bg-surface-container border border-outline-variant text-on-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px] text-primary">support_agent</span>
+                Have questions? Message Support
+              </button>
             </div>
           ) : (
             threads.map((thread) => {
@@ -194,14 +243,22 @@ export const Messages = () => {
                   size="md"
                 />
                 <div>
-                  <h3 className="font-label-md text-label-md text-on-surface font-bold">
-                    {getRecipient(activeThread)?.name || "User"}
-                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-label-md text-label-md text-on-surface font-bold">
+                      {getRecipient(activeThread)?.name || "User"}
+                    </h3>
+                    {getRecipient(activeThread)?.role === "admin" && (
+                      <span className="inline-flex items-center gap-0.5 bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        <span className="material-symbols-outlined text-[12px] icon-fill">admin_panel_settings</span>
+                        Support Team
+                      </span>
+                    )}
+                  </div>
                   {activeTypers.length > 0 ? (
                     <span className="text-xs text-primary font-semibold italic">typing...</span>
                   ) : (
                     <span className="text-xs text-outline uppercase font-bold">
-                      {getRecipient(activeThread)?.role || ""}
+                      {getRecipient(activeThread)?.role === "admin" ? "Official Support" : (getRecipient(activeThread)?.role || "")}
                     </span>
                   )}
                 </div>

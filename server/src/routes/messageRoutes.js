@@ -22,6 +22,7 @@ const {
   sendMessage,
   markConversationRead,
   getUnreadCount,
+  contactAdminSupport,
 } = require("../controllers/messageController");
 
 const sendLimiter = rateLimit({
@@ -29,8 +30,9 @@ const sendLimiter = rateLimit({
   message: { error: "Too many messages. Please slow down." }
 });
 
-// Note: unread-count MUST come before /:id to avoid route collision
+// Note: static sub-routes MUST come before /:id to avoid route collision
 router.get("/unread-count",                   requireAuth, getUnreadCount);
+router.post("/support",                       requireAuth, contactAdminSupport);
 router.get("/conversations",                  requireAuth, listConversations);
 router.post("/conversations",                 requireAuth, getOrCreateConversation);
 router.get("/conversations/:id",              requireAuth, getConversation);

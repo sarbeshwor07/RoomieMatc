@@ -352,8 +352,62 @@ async function getUnreadCount(req, res) {
 
     return res.json({ unread_count: row?.cnt || 0 });
   } catch (err) {
-    console.error("[GetUnreadCount]", err.message);
-    return res.status(500).json({ error: "Failed to get unread count." });
+    console.error("[getUnreadCount]", err.message);
+    return res.status(500).json({ error: "Failed to fetch unread count." });
+  }
+}
+
+// ── POST /api/messages/support ───────────────────────────────────────────
+// Allows any authenticated client to get or create a direct conversation with the main administrator.
+async function contactAdminSupport(req, res) {
+  try {
+    const userId = req.user.id;
+
+    // Find the primary admin
+    const admin = await get(
+      "SELECT id, name, email, profile_image, role FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1"
+    );
+    if (!admin) {
+      return res.status(404).json({ error: "System administrator account not found." });
+    }
+
+    if (admin.id === userId) {
+      return res.status(400).json({ error: "You are currently logged in as administrator." });
+    }
+
+    // Look for an existing direct conversation between user and admin (property_id IS NULL)
+    const existing = await get(
+      `SELECT cp1.conversation_id
+       FROM conversation_participants cp1
+       JOIN conversation_participants cp2
+         ON cp1.conversation_id = cp2.conversation_id
+       JOIN conversations c
+         ON c.id = cp1.conversation_id
+       WHERE cp1.user_id = ?
+         AND cp2.user_id = ?
+         AND c.property_id IS NULL
+       LIMIT 1`,
+      [userId, admin.id]
+    );
+
+    if (existing) {
+      const conv = await buildConversation(existing.conversation_id, userId);
+      return res.json({ conversation: conv, admin, created: false });
+    }
+
+    // Create new conversation
+    const convId = uuidv4();
+    await run("INSERT INTO conversations (id, property_id) VALUES (?, NULL)", [convId]);
+    await run(
+      "INSERT INTO conversation_participants (conversation_id, user_id) VALUES (?, ?), (?, ?)",
+      [convId, userId, convId, admin.id]
+    );
+
+    const conv = await buildConversation(convId, userId);
+    return res.status(201).json({ conversation: conv, admin, created: true });
+  } catch (err) {
+    console.error("[ContactAdminSupport]", err.message);
+    return res.status(500).json({ error: "Failed to connect with administrator." });
   }
 }
 
@@ -365,4 +419,6 @@ module.exports = {
   sendMessage,
   markConversationRead,
   getUnreadCount,
+  contactAdminSupport,
 };
+
