@@ -33,26 +33,6 @@ body {
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Card shine effect */
-.bg-surface-container-lowest::before,
-.bg-surface-container-low::before,
-.bg-surface-container::before,
-.bg-surface::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    120deg,
-    rgba(255, 255, 255, 0) 40%,
-    rgba(255, 255, 255, 0.8) 50%,
-    rgba(255, 255, 255, 0) 60%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  z-index: 10;
-}
-
 /* Card glow effect */
 .bg-surface-container-lowest::after,
 .bg-surface-container-low::after,
@@ -83,17 +63,9 @@ body {
   border-color: rgba(102, 126, 234, 0.3) !important;
 }
 
-.bg-surface-container-lowest:hover::before,
-.bg-surface-container-low:hover::before,
-.bg-surface-container::hover::before,
-.bg-surface:hover::before {
-  opacity: 1;
-  animation: shine 3s infinite;
-}
-
 .bg-surface-container-lowest:hover::after,
 .bg-surface-container-low:hover::after,
-.bg-surface-container::hover::after,
+.bg-surface-container:hover::after,
 .bg-surface:hover::after {
   opacity: 1;
 }
@@ -388,13 +360,7 @@ a:hover {
 
 /* Touch devices */
 @media (hover: none) and (pointer: coarse) {
-  .bg-surface-container-lowest:hover::before,
-  .bg-surface-container-low:hover::before,
-  .bg-surface-container::hover::before,
-  .bg-surface:hover::before {
-    animation: none;
-    opacity: 0;
-  }
+  /* Touch device - disable hover transforms */
   
   .bg-surface-container-lowest:hover,
   .bg-surface-container-low:hover,
