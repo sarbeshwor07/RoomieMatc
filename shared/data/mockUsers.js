@@ -63,7 +63,7 @@ export const mockUsers = [
   },
   {
     id: "u3",
-    name: "Alex Admin",
+    name: "Admin",
     email: "admin@roomiematch.com",
     password: "password123",
     role: "admin",

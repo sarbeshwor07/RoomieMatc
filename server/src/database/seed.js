@@ -61,7 +61,7 @@ async function seed() {
   const users = [
     // id, name, email, password_hash, role, phone, university, major, age, gender, city, budget_min, budget_max, bio, is_verified, email_verified
     [
-      ID.admin, "Alex Admin", "admin@roomiematch.com", pw,
+      ID.admin, "Admin", "admin@roomiematch.com", pw,
       "admin", "+977 985-123-4567",
       null, null, null, null, "Kathmandu", null, null,
       "Platform administrator.",
