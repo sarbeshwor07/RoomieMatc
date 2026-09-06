@@ -90,9 +90,12 @@ export const AdminMessages = () => {
   };
 
   const handleSend = (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || !activeThreadId) return;
-    sendMessage(activeThreadId, inputText);
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
+    const text = inputText.trim();
+    if (!text || !activeThreadId) return;
+    sendMessage(activeThreadId, text);
     setInputText("");
     sendTyping(activeThreadId, false);
     if (typingTimeout) {
@@ -600,7 +603,10 @@ export const AdminMessages = () => {
 
             {/* Input Composer */}
             <form
-              onSubmit={handleSend}
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend(e);
+              }}
               className="p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-3"
             >
               <input
@@ -608,9 +614,6 @@ export const AdminMessages = () => {
                 type="text"
                 value={inputText}
                 onChange={handleInputChange}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) handleSend(e);
-                }}
                 placeholder={isConnected ? "Type a message as Administrator..." : "Reconnecting socket..."}
                 disabled={!isConnected && inputText === ""}
                 className="flex-grow bg-surface-container border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
@@ -619,7 +622,7 @@ export const AdminMessages = () => {
                 type="submit"
                 variant="primary"
                 disabled={!inputText.trim()}
-                className="py-3 px-5 shrink-0 rounded-xl"
+                className="py-3 px-5 shrink-0 rounded-xl cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">send</span>
               </Button>

@@ -169,6 +169,10 @@ function registerSocketHandlers(io) {
         ).catch(() => []);
 
         for (const p of others) {
+          // Deliver live message event directly to participant's socket rooms
+          io.to(p.user_id).emit("new_message", { message: msgPayload });
+          io.to(`user_${p.user_id}`).emit("new_message", { message: msgPayload });
+
           createNotification(
             p.user_id,
             "New Message",

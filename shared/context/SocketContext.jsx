@@ -237,10 +237,14 @@ export const SocketProvider = ({ children }) => {
   // ── Open a conversation ───────────────────────────────────────────────────
   const openConversation = useCallback(async (convId) => {
     if (!convId) return;
+    const isAlreadyOpen = activeConvIdRef.current === convId;
     setActiveConvId(convId);
     activeConvIdRef.current = convId;
-    setActiveMessages([]);
-    setLoadingMessages(true);
+
+    if (!isAlreadyOpen) {
+      setActiveMessages([]);
+      setLoadingMessages(true);
+    }
 
     // Fetch message history via REST
     try {
@@ -249,7 +253,9 @@ export const SocketProvider = ({ children }) => {
     } catch (err) {
       console.error("[SocketContext] loadMessages:", err.message);
     } finally {
-      setLoadingMessages(false);
+      if (!isAlreadyOpen) {
+        setLoadingMessages(false);
+      }
     }
 
     // Zero unread for this conversation locally
@@ -262,6 +268,63 @@ export const SocketProvider = ({ children }) => {
       socketRef.current.emit("join_conversation", { conversationId: convId });
     }
   }, []);
+
+  // ── Auto-refresh: Poll active conversation messages silently every 3s ────────
+  useEffect(() => {
+    if (!activeConvId || !currentUser) return;
+
+    const pollActiveMessages = async () => {
+      try {
+        const data = await apiGetMessages(activeConvId);
+        if (data?.messages && Array.isArray(data.messages)) {
+          setActiveMessages(prev => {
+            if (prev.length !== data.messages.length) {
+              return data.messages;
+            }
+            const hasChange = data.messages.some((m, i) => {
+              const p = prev[i];
+              return !p || p.id !== m.id || p.is_read !== m.is_read;
+            });
+            return hasChange ? data.messages : prev;
+          });
+        }
+      } catch {
+        // silent background poll error
+      }
+    };
+
+    const timer = setInterval(pollActiveMessages, 3000);
+    return () => clearInterval(timer);
+  }, [activeConvId, currentUser]);
+
+  // ── Auto-refresh: Poll conversation threads list silently every 6s ─────────
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const pollConversations = async () => {
+      try {
+        const data = await apiListConversations();
+        if (data?.conversations && Array.isArray(data.conversations)) {
+          setConversations(prev => {
+            if (prev.length !== data.conversations.length) {
+              return data.conversations;
+            }
+            const hasChange = data.conversations.some((c, i) => {
+              const p = prev[i];
+              return !p || p.id !== c.id || p.unread_count !== c.unread_count ||
+                     p.last_message?.id !== c.last_message?.id;
+            });
+            return hasChange ? data.conversations : prev;
+          });
+        }
+      } catch {
+        // silent background poll error
+      }
+    };
+
+    const timer = setInterval(pollConversations, 6000);
+    return () => clearInterval(timer);
+  }, [currentUser]);
 
   // ── Send a message ────────────────────────────────────────────────────────
   const sendMessage = useCallback((convId, text) => {

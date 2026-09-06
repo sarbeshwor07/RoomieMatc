@@ -35,6 +35,7 @@ export const Messages = () => {
   const [inputText, setInputText]           = useState("");
   const [typingTimeout, setTypingTimeout]   = useState(null);
   const [connectingAdmin, setConnectingAdmin] = useState(false);
+  const contactingAdminRef                  = useRef(false);
   const messagesEndRef                      = useRef(null);
   const inputRef                            = useRef(null);
 
@@ -58,7 +59,8 @@ export const Messages = () => {
   // Open thread from URL param or default to first thread or handle ?contact=admin
   useEffect(() => {
     const contactParam = searchParams.get("contact");
-    if (contactParam === "admin") {
+    if (contactParam === "admin" && !contactingAdminRef.current) {
+      contactingAdminRef.current = true;
       handleContactAdmin();
       return;
     }
@@ -88,9 +90,12 @@ export const Messages = () => {
   };
 
   const handleSend = (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || !activeThreadId) return;
-    sendMessage(activeThreadId, inputText);
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
+    const text = inputText.trim();
+    if (!text || !activeThreadId) return;
+    sendMessage(activeThreadId, text);
     setInputText("");
     // Stop typing indicator
     sendTyping(activeThreadId, false);
@@ -341,13 +346,18 @@ export const Messages = () => {
             </div>
 
             {/* Input bar */}
-            <form onSubmit={handleSend} className="p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend(e);
+              }}
+              className="p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-3"
+            >
               <input
                 ref={inputRef}
                 type="text"
                 value={inputText}
                 onChange={handleInputChange}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSend(e); }}
                 placeholder={isConnected ? "Type your message..." : "Reconnecting..."}
                 disabled={!isConnected && inputText === ""}
                 className="flex-grow bg-surface-container border border-outline-variant rounded-lg px-4 py-3 text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
@@ -356,7 +366,7 @@ export const Messages = () => {
                 type="submit"
                 variant="primary"
                 disabled={!inputText.trim()}
-                className="py-3 px-5 shrink-0"
+                className="py-3 px-5 shrink-0 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[22px]">send</span>
               </Button>
