@@ -1,10 +1,9 @@
 /**
- * seed.js — Populates the roomiematch database with demo data.
+ * seed.js — Populates the RoomieMatch SQLite database with demo data.
  *
  * Run:  npm run db:seed
  *
- * Safe to re-run — uses INSERT IGNORE / ON DUPLICATE KEY UPDATE so existing
- * rows are never duplicated. Wipe with: DROP DATABASE roomiematch; npm run db:migrate
+ * Safe to re-run — replaces or ignores existing rows cleanly.
  *
  * All users share the same unified 'user' role — every account can both
  * search/apply for properties AND list/manage their own properties.
@@ -17,11 +16,11 @@
  *   chloe@user.com         → Regular user (unverified)
  */
 require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
+const Database = require("better-sqlite3");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
-const mysql = require("mysql2/promise");
 
-// ── helpers ────────────────────────────────────────────────────────────────
 async function hash(plain) {
   return bcrypt.hash(plain, 10);
 }
@@ -42,16 +41,12 @@ const ID = {
 };
 
 async function seed() {
-  const conn = await mysql.createConnection({
-    host:     process.env.DB_HOST     || "localhost",
-    port:     Number(process.env.DB_PORT) || 3306,
-    user:     process.env.DB_USER     || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME     || "roomiematch",
-    multipleStatements: true,
-  });
+  const dbPath = path.resolve(__dirname, "../../data/roomiematch.db");
+  console.log(`[Seed] Connecting to SQLite database at ${dbPath}...`);
+  const db = new Database(dbPath);
+  db.pragma("foreign_keys = ON");
 
-  console.log("[Seed] Connected to MySQL.\n");
+  console.log("[Seed] SQLite database opened.\n");
 
   // ── 1. Users ──────────────────────────────────────────────────────────────
   console.log("[Seed] Inserting users...");
@@ -96,17 +91,19 @@ async function seed() {
     ],
   ];
 
+  const userStmt = db.prepare(`
+    INSERT INTO users
+      (id, name, email, password_hash, role, phone,
+       university, major, age, gender, city, budget_min, budget_max, bio,
+       is_verified, email_verified)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      name=excluded.name, email=excluded.email, password_hash=excluded.password_hash,
+      city=excluded.city, is_verified=excluded.is_verified, email_verified=excluded.email_verified
+  `);
+
   for (const u of users) {
-    await conn.execute(
-      `INSERT INTO users
-         (id, name, email, password_hash, role, phone,
-          university, major, age, gender, city, budget_min, budget_max, bio,
-          is_verified, email_verified)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE
-         name=VALUES(name), email=VALUES(email), city=VALUES(city)`,
-      u
-    );
+    userStmt.run(...u);
   }
   console.log(`  ✓ ${users.length} users`);
 
@@ -120,13 +117,14 @@ async function seed() {
     [ID.marcus, "No", "Pets Allowed",       "Medium", "Early Bird", "High",     "Sometimes"],
     [ID.chloe,  "No", "Dog or Cat Allowed", "High",   "Night Owl",  "High",     "Often"],
   ];
+
+  const prefStmt = db.prepare(`
+    INSERT INTO user_preferences (user_id, smoke, pet, cleanliness, sleep_schedule, social_life, cooking)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(user_id) DO UPDATE SET smoke=excluded.smoke, cleanliness=excluded.cleanliness
+  `);
   for (const p of prefs) {
-    await conn.execute(
-      `INSERT INTO user_preferences (user_id, smoke, pet, cleanliness, sleep_schedule, social_life, cooking)
-       VALUES (?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE smoke=VALUES(smoke)`,
-      p
-    );
+    prefStmt.run(...p);
   }
   console.log(`  ✓ ${prefs.length} preference rows`);
 
@@ -149,11 +147,10 @@ async function seed() {
     [ID.chloe,  "Indie Music"],
     [ID.chloe,  "Thrifting"],
   ];
+
+  const hobbyStmt = db.prepare("INSERT OR IGNORE INTO user_hobbies (user_id, hobby) VALUES (?,?)");
   for (const h of hobbies) {
-    await conn.execute(
-      "INSERT IGNORE INTO user_hobbies (user_id, hobby) VALUES (?,?)",
-      h
-    );
+    hobbyStmt.run(...h);
   }
   console.log(`  ✓ ${hobbies.length} hobby rows`);
 
@@ -166,26 +163,27 @@ async function seed() {
     [uuidv4(), ID.marcus, "/api/uploads/verifications/demo-marcus.pdf", "ID Document", "APPROVED", ID.admin],
     [uuidv4(), ID.chloe,  "/api/uploads/verifications/demo-chloe.pdf",  "ID Document", "PENDING",  null],
   ];
+
+  const vdocStmt = db.prepare(`
+    INSERT INTO verification_docs
+      (id, user_id, document_path, document_type, status, submitted_at, reviewed_at, reviewed_by)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET status=excluded.status
+  `);
   for (const d of vdocs) {
-    await conn.execute(
-      `INSERT INTO verification_docs
-         (id, user_id, document_path, document_type, status, submitted_at, reviewed_at, reviewed_by)
-       VALUES (?, ?, ?, ?, ?, NOW(), ${d[5] ? "NOW()" : "NULL"}, ?)
-       ON DUPLICATE KEY UPDATE status=VALUES(status)`,
-      [d[0], d[1], d[2], d[3], d[4], d[5]]
-    );
+    vdocStmt.run(d[0], d[1], d[2], d[3], d[4], d[5] ? new Date().toISOString() : null, d[5]);
   }
   console.log(`  ✓ ${vdocs.length} verification doc rows`);
 
   // ── 5. Properties ─────────────────────────────────────────────────────────
   console.log("[Seed] Inserting properties...");
   const properties = [
-    // id, owner_id, title, address, city, type, bedrooms, bathrooms, price, deposit, description, available_from, status, is_verified
+    // id, owner_id, title, address, city, latitude, longitude, type, bedrooms, bathrooms, price, deposit, description, available_from, status, is_verified
     [
       ID.prop1, ID.sarah,
       "University Gardens Apartment",
       "104 University Ave, Suite 3B",
-      "Kathmandu", "Apartment", 2, 2.0, 12500, 12500,
+      "Kathmandu", 27.6820, 85.2830, "Apartment", 2, 2.0, 12500, 12500,
       "Spacious 2-bedroom apartment just a short 5-minute walk to the main gates of Tribhuvan University. Fully furnished kitchen, central heating, high-speed fiber internet, and on-site laundry facilities. Quiet building perfect for studious tenants.",
       "2026-09-01", "active", 1
     ],
@@ -193,7 +191,7 @@ async function seed() {
       ID.prop2, ID.sarah,
       "Modern Townhouse with Backyard",
       "452 Thamel Street",
-      "Kathmandu", "Townhouse", 3, 2.5, 16500, 16500,
+      "Kathmandu", 27.7150, 85.3120, "Townhouse", 3, 2.5, 16500, 16500,
       "Beautiful 3-bedroom, 2.5-bathroom townhouse with a modern open-concept kitchen, hardwood floors, and a lovely fenced backyard. Private parking included. Utilities (water/gas) are partially included in rent.",
       "2026-09-15", "active", 1
     ],
@@ -201,7 +199,7 @@ async function seed() {
       ID.prop3, ID.sarah,
       "Cozy Studio near Library",
       "88 College Road, Apt 1A",
-      "Kathmandu", "Studio", 1, 1.0, 9900, 9900,
+      "Kathmandu", 27.6950, 85.3200, "Studio", 1, 1.0, 9900, 9900,
       "Cozy studio apartment situated right next to the campus library and student union center. Features a kitchenette, modern bathroom, and pull-down Murphy bed. Ideal for single graduate students or busy juniors.",
       "2026-10-01", "active", 1
     ],
@@ -209,24 +207,44 @@ async function seed() {
       ID.prop4, ID.sarah,
       "Sunny 4-Bed Student House",
       "17 Baneshwor Lane",
-      "Kathmandu", "House", 4, 2.0, 23750, 23750,
+      "Kathmandu", 27.6900, 85.3350, "House", 4, 2.0, 23750, 23750,
       "Bright 4-bedroom house perfect for a group of students. Large communal kitchen and lounge, two bathrooms, private garden, and street parking. A 10-minute bus ride to the university main campus.",
       "2026-09-01", "active", 1
     ],
   ];
+
+  const propStmt = db.prepare(`
+    INSERT INTO properties
+      (id, owner_id, title, address, city, latitude, longitude, type, bedrooms, bathrooms,
+       price, deposit, description, available_from, status, is_verified)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET title=excluded.title, price=excluded.price, latitude=excluded.latitude, longitude=excluded.longitude
+  `);
   for (const p of properties) {
-    await conn.execute(
-      `INSERT INTO properties
-         (id, owner_id, title, address, city, type, bedrooms, bathrooms,
-          price, deposit, description, available_from, status, is_verified)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE title=VALUES(title)`,
-      p
-    );
+    propStmt.run(...p);
   }
   console.log(`  ✓ ${properties.length} properties`);
 
-  // ── 6. Property amenities ─────────────────────────────────────────────────
+  // ── 6. Property images ───────────────────────────────────────────────────
+  console.log("[Seed] Inserting property images...");
+  const propImages = [
+    [uuidv4(), ID.prop1, "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800", 1, 0],
+    [uuidv4(), ID.prop1, "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800", 0, 1],
+    [uuidv4(), ID.prop2, "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800", 1, 0],
+    [uuidv4(), ID.prop2, "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800", 0, 1],
+    [uuidv4(), ID.prop3, "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800", 1, 0],
+    [uuidv4(), ID.prop4, "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800", 1, 0],
+  ];
+  const imgStmt = db.prepare(`
+    INSERT OR REPLACE INTO property_images (id, property_id, image_path, is_primary, sort_order)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  for (const img of propImages) {
+    imgStmt.run(...img);
+  }
+  console.log(`  ✓ ${propImages.length} property images`);
+
+  // ── 7. Property amenities ─────────────────────────────────────────────────
   console.log("[Seed] Inserting amenities...");
   const amenities = [
     [ID.prop1, "Wifi"],
@@ -251,15 +269,13 @@ async function seed() {
     [ID.prop4, "Near Bus Stop"],
     [ID.prop4, "Large Kitchen"],
   ];
+  const amenityStmt = db.prepare("INSERT OR IGNORE INTO property_amenities (property_id, amenity) VALUES (?,?)");
   for (const a of amenities) {
-    await conn.execute(
-      "INSERT IGNORE INTO property_amenities (property_id, amenity) VALUES (?,?)",
-      a
-    );
+    amenityStmt.run(...a);
   }
   console.log(`  ✓ ${amenities.length} amenity rows`);
 
-  // ── 7. Property rules ─────────────────────────────────────────────────────
+  // ── 8. Property rules ─────────────────────────────────────────────────────
   console.log("[Seed] Inserting rules...");
   const rules = [
     [ID.prop1, "No smoking"],
@@ -274,54 +290,46 @@ async function seed() {
     [ID.prop4, "Bills split equally"],
     [ID.prop4, "Shared cleaning rota"],
   ];
+  const ruleStmt = db.prepare("INSERT OR IGNORE INTO property_rules (property_id, rule) VALUES (?,?)");
   for (const r of rules) {
-    await conn.execute(
-      "INSERT INTO property_rules (property_id, rule) VALUES (?,?) ON DUPLICATE KEY UPDATE rule=VALUES(rule)",
-      r
-    );
+    ruleStmt.run(...r);
   }
   console.log(`  ✓ ${rules.length} rule rows`);
 
-  // ── 8. Applications ───────────────────────────────────────────────────────
+  // ── 9. Applications ───────────────────────────────────────────────────────
   console.log("[Seed] Inserting applications...");
+  const appStmt = db.prepare(`
+    INSERT INTO applications (id, property_id, tenant_id, owner_id, status, message, applied_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-7 days'))
+    ON CONFLICT(id) DO UPDATE SET status=excluded.status
+  `);
 
-  // app1: Alex applied for prop1 (pending)
-  await conn.execute(
-    `INSERT INTO applications (id, property_id, tenant_id, owner_id, status, message, applied_at)
-     VALUES (?, ?, ?, ?, 'pending', ?, DATE_SUB(NOW(), INTERVAL 7 DAY))
-     ON DUPLICATE KEY UPDATE status=VALUES(status)`,
-    [
-      ID.app1, ID.prop1, ID.alex, ID.sarah,
-      "Hi Sarah, I am a Computer Science junior at State University. I am very interested in this room since it is so close to campus. I am quiet, clean, and always pay rent on time. Let me know if we can arrange a viewing!"
-    ]
-  );
-  await conn.execute(
-    `INSERT IGNORE INTO application_history (application_id, status, label, changed_at)
-     VALUES (?, 'pending', 'Application submitted by Alex Mercer', DATE_SUB(NOW(), INTERVAL 7 DAY))`,
-    [ID.app1]
+  appStmt.run(
+    ID.app1, ID.prop1, ID.alex, ID.sarah, 'pending',
+    "Hi Sarah, I am a Computer Science junior at State University. I am very interested in this room since it is so close to campus. I am quiet, clean, and always pay rent on time. Let me know if we can arrange a viewing!"
   );
 
-  // app2: Marcus applied for prop2 (approved)
-  await conn.execute(
-    `INSERT INTO applications (id, property_id, tenant_id, owner_id, status, message, applied_at)
-     VALUES (?, ?, ?, ?, 'approved', ?, DATE_SUB(NOW(), INTERVAL 10 DAY))
-     ON DUPLICATE KEY UPDATE status=VALUES(status)`,
-    [
-      ID.app2, ID.prop2, ID.marcus, ID.sarah,
-      "Hello Mrs. Jenkins, I am interested in renting a room in the Townhouse. I have a clean credit record and a stable co-signer."
-    ]
+  const histStmt = db.prepare(`
+    INSERT OR IGNORE INTO application_history (application_id, status, label, changed_at)
+    VALUES (?, ?, ?, datetime('now', '-7 days'))
+  `);
+  histStmt.run(ID.app1, 'pending', 'Application submitted by Alex Mercer');
+
+  const app2Stmt = db.prepare(`
+    INSERT INTO applications (id, property_id, tenant_id, owner_id, status, message, applied_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-10 days'))
+    ON CONFLICT(id) DO UPDATE SET status=excluded.status
+  `);
+  app2Stmt.run(
+    ID.app2, ID.prop2, ID.marcus, ID.sarah, 'approved',
+    "Hello Mrs. Jenkins, I am interested in renting a room in the Townhouse. I have a clean credit record and a stable co-signer."
   );
-  await conn.execute(
-    `INSERT IGNORE INTO application_history (application_id, status, label, changed_at)
-     VALUES
-       (?, 'pending',  'Application submitted by Marcus Brody',   DATE_SUB(NOW(), INTERVAL 10 DAY)),
-       (?, 'approved', 'Application approved by Sarah Jenkins',   DATE_SUB(NOW(), INTERVAL 8 DAY))`,
-    [ID.app2, ID.app2]
-  );
-  // Do NOT mark prop2 as rented — keep all properties active for demo
+
+  histStmt.run(ID.app2, 'pending', 'Application submitted by Marcus Brody');
+  histStmt.run(ID.app2, 'approved', 'Application approved by Sarah Jenkins');
   console.log("  ✓ 2 applications + history");
 
-  // ── 9. Sample notifications ───────────────────────────────────────────────
+  // ── 10. Sample notifications ───────────────────────────────────────────────
   console.log("[Seed] Inserting notifications...");
   const notifs = [
     [uuidv4(), ID.alex,   "Application Received",         "Your application for University Gardens Apartment is under review.",   "application", ID.app1],
@@ -329,17 +337,21 @@ async function seed() {
     [uuidv4(), ID.marcus, "Application Approved",         "Your application for Modern Townhouse with Backyard was approved!",     "application", ID.app2],
     [uuidv4(), ID.chloe,  "Verification Pending",         "Your ID document has been submitted and is awaiting admin review.",     "verification", null],
     [uuidv4(), ID.alex,   "Welcome to RoomieMatch",       "Complete your profile to increase your chances of finding a match.",   "general", null],
+    [uuidv4(), ID.marcus, "New Roommate Match",    "You have a 78% compatibility match with Alex Mercer!",           "general",      null],
+    [uuidv4(), ID.chloe,  "New Roommate Match",    "You have a 72% compatibility match with Sarah Jenkins!",         "general",      null],
+    [uuidv4(), ID.sarah,  "Property Verified",     "Your listing 'University Gardens Apartment' has been verified.", "verification", ID.prop1],
   ];
+
+  const notifStmt = db.prepare(`
+    INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, reference_id, is_read)
+    VALUES (?,?,?,?,?,?,0)
+  `);
   for (const n of notifs) {
-    await conn.execute(
-      `INSERT IGNORE INTO notifications (id, user_id, title, message, type, reference_id, is_read)
-       VALUES (?,?,?,?,?,?,0)`,
-      n
-    );
+    notifStmt.run(...n);
   }
   console.log(`  ✓ ${notifs.length} notifications`);
 
-  // ── 10. Sample favourites ──────────────────────────────────────────────────
+  // ── 11. Sample favourites ──────────────────────────────────────────────────
   console.log("[Seed] Inserting favourites...");
   const favs = [
     [ID.alex,   ID.prop1],
@@ -348,15 +360,13 @@ async function seed() {
     [ID.chloe,  ID.prop1],
     [ID.chloe,  ID.prop3],
   ];
+  const favStmt = db.prepare("INSERT OR IGNORE INTO favourites (user_id, property_id) VALUES (?,?)");
   for (const f of favs) {
-    await conn.execute(
-      "INSERT IGNORE INTO favourites (user_id, property_id) VALUES (?,?)",
-      f
-    );
+    favStmt.run(...f);
   }
   console.log(`  ✓ ${favs.length} favourite rows`);
 
-  // ── 11. Reviews ───────────────────────────────────────────────────────────
+  // ── 12. Reviews ───────────────────────────────────────────────────────────
   console.log("[Seed] Inserting reviews...");
   const reviews = [
     // id, reviewer_id, target_property, target_user, rating, comment
@@ -367,16 +377,16 @@ async function seed() {
     [uuidv4(), ID.marcus, null, ID.sarah, 5.0, "Sarah is an amazing property owner. Very professional, quick to respond, and fair with pricing."],
     [uuidv4(), ID.chloe,  null, ID.sarah, 4.5, "Had a great experience dealing with Sarah. Transparent and honest throughout the whole process."],
   ];
+  const revStmt = db.prepare(`
+    INSERT OR IGNORE INTO reviews (id, reviewer_id, target_property, target_user, rating, comment)
+    VALUES (?,?,?,?,?,?)
+  `);
   for (const r of reviews) {
-    await conn.execute(
-      `INSERT IGNORE INTO reviews (id, reviewer_id, target_property, target_user, rating, comment)
-       VALUES (?,?,?,?,?,?)`,
-      r
-    );
+    revStmt.run(...r);
   }
   console.log(`  ✓ ${reviews.length} review rows`);
 
-  // ── 12. Compatibility scores ──────────────────────────────────────────────
+  // ── 13. Compatibility scores ──────────────────────────────────────────────
   console.log("[Seed] Inserting compatibility scores...");
   const scores = [
     // user_id, candidate_id, score, budget_score, lifestyle_score, interests_score
@@ -390,38 +400,20 @@ async function seed() {
     [ID.chloe,  ID.marcus, 70, 65, 80, 60],
     [ID.chloe,  ID.sarah,  72, 70, 78, 65],
   ];
+
+  const scoreStmt = db.prepare(`
+    INSERT INTO compatibility_scores
+      (user_id, candidate_id, score, budget_score, lifestyle_score, interests_score)
+    VALUES (?,?,?,?,?,?)
+    ON CONFLICT(user_id, candidate_id) DO UPDATE SET
+      score=excluded.score, budget_score=excluded.budget_score,
+      lifestyle_score=excluded.lifestyle_score, interests_score=excluded.interests_score
+  `);
   for (const s of scores) {
-    await conn.execute(
-      `INSERT INTO compatibility_scores
-         (user_id, candidate_id, score, budget_score, lifestyle_score, interests_score)
-       VALUES (?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE
-         score=VALUES(score), budget_score=VALUES(budget_score),
-         lifestyle_score=VALUES(lifestyle_score), interests_score=VALUES(interests_score)`,
-      s
-    );
+    scoreStmt.run(...s);
   }
   console.log(`  ✓ ${scores.length} compatibility score rows`);
 
-  // ── 13. Extra notifications ────────────────────────────────────────────────
-  console.log("[Seed] Inserting extra notifications...");
-  const extraNotifs = [
-    [uuidv4(), ID.marcus, "New Roommate Match",    "You have a 78% compatibility match with Alex Mercer!",           "general",      null],
-    [uuidv4(), ID.chloe,  "New Roommate Match",    "You have a 72% compatibility match with Sarah Jenkins!",         "general",      null],
-    [uuidv4(), ID.sarah,  "Property Verified",     "Your listing 'University Gardens Apartment' has been verified.", "verification", ID.prop1],
-    [uuidv4(), ID.alex,   "New Review Posted",     "Someone left a review on University Gardens Apartment.",         "general",      ID.prop1],
-    [uuidv4(), ID.marcus, "Application Approved",  "Your application for Modern Townhouse with Backyard was approved!", "application", ID.app2],
-  ];
-  for (const n of extraNotifs) {
-    await conn.execute(
-      `INSERT IGNORE INTO notifications (id, user_id, title, message, type, reference_id, is_read)
-       VALUES (?,?,?,?,?,?,0)`,
-      n
-    );
-  }
-  console.log(`  ✓ ${extraNotifs.length} extra notification rows`);
-
-  await conn.end();
   console.log("\n[Seed] Complete — database is ready for demo use.\n");
   console.log("Demo accounts (password: password123):");
   console.log("  admin@roomiematch.com  → Admin panel");

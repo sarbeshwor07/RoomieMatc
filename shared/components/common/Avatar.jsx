@@ -23,6 +23,17 @@ export const Avatar = ({ src, name = "", size = "md", className = "", ...props }
   // Show image if src is any non-empty string (http URLs, /api/uploads/... paths, or data URIs)
   const isImage = !!src && src.trim().length > 0;
 
+  const resolvedSrc = React.useMemo(() => {
+    if (!src) return null;
+    const trimmed = src.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:")) {
+      return trimmed;
+    }
+    const apiBase = (import.meta.env?.VITE_API_URL || "/api").replace(/\/api\/?$/, "");
+    if (trimmed.startsWith("/")) return `${apiBase}${trimmed}`;
+    return `${apiBase}/${trimmed}`;
+  }, [src]);
+
   return (
     <div
       className={`rounded-full shrink-0 flex items-center justify-center font-bold text-on-primary-fixed-variant bg-primary-fixed border border-outline-variant overflow-hidden select-none ${
@@ -32,7 +43,7 @@ export const Avatar = ({ src, name = "", size = "md", className = "", ...props }
     >
       {isImage ? (
         <img
-          src={src}
+          src={resolvedSrc}
           alt={name}
           className="w-full h-full object-cover"
           onError={(e) => {

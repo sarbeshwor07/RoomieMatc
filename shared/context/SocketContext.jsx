@@ -46,9 +46,13 @@ import {
 
 export const SocketContext = createContext();
 
-const SOCKET_URL = typeof window !== "undefined"
-  ? window.location.origin  // connects to same Vite dev server port; Vite proxies /socket.io → localhost:4000
-  : "http://localhost:4000";
+const SOCKET_URL =
+  import.meta.env?.VITE_SOCKET_URL ||
+  (import.meta.env?.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")
+    : typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:4000");
 
 export const SocketProvider = ({ children }) => {
   const { currentUser } = useContext(AuthContext);

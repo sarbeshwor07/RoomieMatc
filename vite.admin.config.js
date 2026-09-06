@@ -10,6 +10,9 @@ export default defineConfig({
   root: path.resolve(rootDir, "apps/admin"),
   publicDir: path.resolve(rootDir, "public"),
   envDir: rootDir,
+  optimizeDeps: {
+    include: ['leaflet', 'react-leaflet'],
+  },
   resolve: {
     alias: {
       "@shared": path.resolve(rootDir, "shared"),

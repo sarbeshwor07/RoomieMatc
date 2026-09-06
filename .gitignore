@@ -24,8 +24,14 @@ uploads/
 server/database.sqlite
 server/*.sqlite
 server/*.db
+server/data/*.db
 *.sqlite
 *.db
+
+# Database backups
+*.backup
+*-backup.js
+server/src/database/*-backup*
 
 # Logs
 *.log

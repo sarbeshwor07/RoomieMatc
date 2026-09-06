@@ -21,15 +21,9 @@ async function saveScores(req, res) {
       if (!candidate_id || score === undefined) continue;
 
       await run(
-        `INSERT INTO compatibility_scores
-           (user_id, candidate_id, score, budget_score, lifestyle_score, interests_score)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           score            = VALUES(score),
-           budget_score     = VALUES(budget_score),
-           lifestyle_score  = VALUES(lifestyle_score),
-           interests_score  = VALUES(interests_score),
-           calculated_at    = CURRENT_TIMESTAMP`,
+        `INSERT OR REPLACE INTO compatibility_scores
+           (user_id, candidate_id, score, budget_score, lifestyle_score, interests_score, calculated_at)
+         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
         [
           userId,
           candidate_id,

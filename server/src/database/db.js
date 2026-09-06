@@ -1,90 +1,86 @@
 /**
- * db.js — MySQL connection pool using mysql2/promise.
- *
- * Exports three helpers that match the same interface previously used by sql.js,
- * so every controller/service only needs to change the import — not the call sites.
- *
- *   query(sql, params)   → SELECT  → returns array of row objects
- *   execute(sql, params) → INSERT / UPDATE / DELETE → returns [ResultSetHeader, fields]
- *   getConnection()      → raw PoolConnection for transactions
+ * db-sqlite.js — SQLite3 database adapter with mysql2-compatible interface
+ * 
+ * Drop-in replacement for db.js that uses SQLite instead of MySQL.
+ * Same API: query(), execute(), get(), all(), run(), getConnection(), testConnection()
  */
-const mysql = require("mysql2/promise");
+const Database = require('better-sqlite3');
+const path = require('path');
 
-let _pool = null;
+let _db = null;
 
-function getPool() {
-  if (_pool) return _pool;
+function normalizeSql(sql) {
+  if (!sql || typeof sql !== 'string') return sql;
+  let s = sql;
+  // Replace INSERT IGNORE INTO with INSERT OR IGNORE INTO
+  s = s.replace(/INSERT\s+IGNORE\s+INTO/gi, 'INSERT OR IGNORE INTO');
+  
+  // Handle DATE_SUB(NOW(), INTERVAL X DAY/MINUTE/etc)
+  s = s.replace(/DATE_SUB\s*\(\s*(?:NOW\(\)|CURRENT_TIMESTAMP)\s*,\s*INTERVAL\s+(\d+)\s+DAY\s*\)/gi, "datetime('now', '-$1 days')");
+  s = s.replace(/DATE_SUB\s*\(\s*(?:NOW\(\)|CURRENT_TIMESTAMP)\s*,\s*INTERVAL\s+(\d+)\s+MINUTE\s*\)/gi, "datetime('now', '-$1 minutes')");
+  
+  // Handle DATE_ADD(NOW(), INTERVAL X DAY/MINUTE/etc)
+  s = s.replace(/DATE_ADD\s*\(\s*(?:NOW\(\)|CURRENT_TIMESTAMP)\s*,\s*INTERVAL\s+(\d+)\s+DAY\s*\)/gi, "datetime('now', '+$1 days')");
+  s = s.replace(/DATE_ADD\s*\(\s*(?:NOW\(\)|CURRENT_TIMESTAMP)\s*,\s*INTERVAL\s+(\d+)\s+MINUTE\s*\)/gi, "datetime('now', '+$1 minutes')");
 
-  _pool = mysql.createPool({
-    host:               process.env.DB_HOST            || "localhost",
-    port:               Number(process.env.DB_PORT)    || 3306,
-    user:               process.env.DB_USER            || "root",
-    password:           process.env.DB_PASSWORD        || "",
-    database:           process.env.DB_NAME            || "roomiematch",
-    connectionLimit:    Number(process.env.DB_CONNECTION_LIMIT) || 10,
-    waitForConnections: true,
-    queueLimit:         0,
-    // Return JS Date objects for DATETIME columns
-    dateStrings:        false,
-    // Decode BIGINT as string to avoid precision loss
-    supportBigNumbers:  true,
-    bigNumberStrings:   false,
-    // Keep connections alive
-    enableKeepAlive:    true,
-    keepAliveInitialDelay: 0,
-  });
+  return s;
+}
 
-  return _pool;
+function getDB() {
+  if (_db) return _db;
+  
+  const dbPath = path.resolve(__dirname, '../../data/roomiematch.db');
+  _db = new Database(dbPath, { verbose: console.log });
+  
+  // Enable foreign keys
+  _db.pragma('foreign_keys = ON');
+
+  // Register NOW() function
+  _db.function('NOW', () => new Date().toISOString().replace('T', ' ').substring(0, 19));
+  
+  return _db;
 }
 
 /**
  * query — run a SELECT (or any statement that returns rows).
  * Returns an array of plain row objects.
- *
- * @param {string} sql
- * @param {Array}  params
- * @returns {Promise<Array>}
  */
 async function query(sql, params = []) {
-  const pool = getPool();
-  const [rows] = await pool.query(sql, params);
-  return rows;
+  const db = getDB();
+  const stmt = db.prepare(normalizeSql(sql));
+  return stmt.all(...params);
 }
 
 /**
  * execute — run an INSERT / UPDATE / DELETE.
- * Returns the full mysql2 ResultSetHeader (insertId, affectedRows, etc.)
- *
- * @param {string} sql
- * @param {Array}  params
- * @returns {Promise<object>}  ResultSetHeader
+ * Returns object with insertId, affectedRows (MySQL-compatible format)
  */
 async function execute(sql, params = []) {
-  const pool = getPool();
-  const [result] = await pool.execute(sql, params);
-  return result;
+  const db = getDB();
+  const stmt = db.prepare(normalizeSql(sql));
+  const info = stmt.run(...params);
+  
+  return {
+    insertId: info.lastInsertRowid,
+    affectedRows: info.changes,
+    fieldCount: 0,
+    info: '',
+    serverStatus: 2,
+    warningStatus: 0
+  };
 }
 
 /**
  * get — fetch a single row (first result or null).
- * Drop-in replacement for the old sql.js get().
- *
- * @param {string} sql
- * @param {Array}  params
- * @returns {Promise<object|null>}
  */
 async function get(sql, params = []) {
-  const rows = await query(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+  const db = getDB();
+  const stmt = db.prepare(normalizeSql(sql));
+  return stmt.get(...params) || null;
 }
 
 /**
  * all — fetch all matching rows.
- * Drop-in replacement for the old sql.js all().
- *
- * @param {string} sql
- * @param {Array}  params
- * @returns {Promise<Array>}
  */
 async function all(sql, params = []) {
   return query(sql, params);
@@ -92,35 +88,34 @@ async function all(sql, params = []) {
 
 /**
  * run — execute a write statement (INSERT / UPDATE / DELETE / CREATE).
- * Drop-in replacement for the old sql.js run().
- *
- * @param {string} sql
- * @param {Array}  params
- * @returns {Promise<object>}  ResultSetHeader
  */
 async function run(sql, params = []) {
   return execute(sql, params);
 }
 
 /**
- * getConnection — retrieve a raw PoolConnection for manual transactions.
- * Remember to call connection.release() when done.
- *
- * @returns {Promise<PoolConnection>}
+ * getConnection — returns a mock connection for compatibility
+ * SQLite doesn't need connection pooling
  */
 async function getConnection() {
-  return getPool().getConnection();
+  const db = getDB();
+  return {
+    query: (sql, params) => Promise.resolve([query(sql, params)]),
+    execute: (sql, params) => Promise.resolve([execute(sql, params)]),
+    release: () => {},
+    beginTransaction: () => db.prepare('BEGIN').run(),
+    commit: () => db.prepare('COMMIT').run(),
+    rollback: () => db.prepare('ROLLBACK').run(),
+  };
 }
 
 /**
- * testConnection — ping MySQL to confirm connectivity.
- * Called during server startup.
+ * testConnection — verify database is accessible
  */
 async function testConnection() {
-  const conn = await getConnection();
-  await conn.ping();
-  conn.release();
-  console.log("[DB] MySQL connection pool ready.");
+  const db = getDB();
+  db.prepare('SELECT 1').get();
+  console.log('[DB] SQLite database ready.');
 }
 
 module.exports = { query, execute, get, all, run, getConnection, testConnection };

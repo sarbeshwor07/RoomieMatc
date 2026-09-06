@@ -118,16 +118,15 @@ async function uploadVerificationDoc(req, res) {
 
     const id = uuidv4();
 
-    // MySQL: INSERT … ON DUPLICATE KEY UPDATE (replaces SQLite ON CONFLICT)
     await run(
       `INSERT INTO verification_docs (id, user_id, document_path, document_type, status, submitted_at)
-       VALUES (?, ?, ?, ?, 'PENDING', NOW())
-       ON DUPLICATE KEY UPDATE
-         document_path    = VALUES(document_path),
-         document_type    = VALUES(document_type),
+       VALUES (?, ?, ?, ?, 'PENDING', datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         document_path    = excluded.document_path,
+         document_type    = excluded.document_type,
          status           = 'PENDING',
          rejection_reason = NULL,
-         submitted_at     = NOW(),
+         submitted_at     = datetime('now'),
          reviewed_at      = NULL,
          reviewed_by      = NULL`,
       [id, userId, docPath, docType],

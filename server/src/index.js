@@ -32,25 +32,37 @@ const messageRoutes      = require("./routes/messageRoutes");
 const reviewRoutes       = require("./routes/reviewRoutes");
 const compatibilityRoutes = require("./routes/compatibilityRoutes");
 
+const rateLimit = require("express-rate-limit");
+
 const app  = express();
 const PORT = process.env.PORT || 4000;
+
+// Enable reverse proxy trust (Render, Railway, Vercel, Cloudflare, etc.)
+app.set("trust proxy", 1);
 
 // ── Create HTTP server (required for Socket.io to share port) ─────────────
 const httpServer = http.createServer(app);
 
 // ── Allowed origins ────────────────────────────────────────────────────────
-// In development, accept any localhost port (Vite auto-increments if port is busy).
-// In production, only the explicit CLIENT_URL and ADMIN_URL are allowed.
+// Support local dev, configured URLs, comma-separated ALLOWED_ORIGINS, and *.vercel.app
 const isDev = (process.env.NODE_ENV || "development") !== "production";
+
+const customOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:5173",
-  process.env.ADMIN_URL  || "http://localhost:5174"
+  process.env.ADMIN_URL  || "http://localhost:5174",
+  ...customOrigins,
 ];
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true; // same-origin / server-to-server
+  if (!origin) return true; // same-origin / server-to-server / curl / Postman
   if (allowedOrigins.includes(origin)) return true;
+  // Allow all Vercel deployment URLs (production and preview branches)
+  if (/^https:\/\/[a-zA-Z0-9-_\.]+\.vercel\.app$/.test(origin)) return true;
   // In development: accept any http://localhost:* or http://127.0.0.1:* or any local network IP
   if (isDev && /^http:\/\/(localhost|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin)) return true;
   return false;
@@ -74,10 +86,30 @@ registerSocketHandlers(io);
 // ── Expose io instance globally so controllers can emit events ─────────────
 app.set("io", io);
 
-// ── Security headers ───────────────────────────────────────────────────────
+// ── Security headers (Helmet) ──────────────────────────────────────────────
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
 }));
+
+// ── Rate Limiters (Firewall Protection) ─────────────────────────────────────
+// 1. General API rate limiter: max 300 requests per 15 minutes per IP
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests from this IP. Please try again in 15 minutes." },
+});
+
+// 2. Auth rate limiter: max 25 attempts per 15 minutes per IP to prevent brute-force attacks
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts from this IP. Please try again in 15 minutes." },
+});
 
 // ── CORS ───────────────────────────────────────────────────────────────────
 app.use(cors({
@@ -86,12 +118,17 @@ app.use(cors({
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 // ── Body parsers ───────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// ── Apply rate limits ──────────────────────────────────────────────────────
+app.use("/api/auth", authLimiter);
+app.use("/api", generalLimiter);
 
 // ── Static file serving ────────────────────────────────────────────────────
 app.use("/api/uploads/profiles",   express.static(path.resolve(__dirname, "../uploads/profiles")));

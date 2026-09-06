@@ -249,15 +249,13 @@ async function googleAuthCallback(req, res) {
     // Store pending Google auth session (cleaned up after OTP verification)
     const pendingId = uuidv4();
 
-    // MySQL: ON DUPLICATE KEY UPDATE to handle repeated sign-in attempts
+    await run(
+      `DELETE FROM google_auth_pending WHERE email = ? OR google_id = ?`,
+      [email, googleId],
+    );
     await run(
       `INSERT INTO google_auth_pending (id, google_id, email, name, picture_url, email_verified, expires_at)
-       VALUES (?, ?, ?, ?, ?, 1, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
-       ON DUPLICATE KEY UPDATE
-         id = VALUES(id),
-         name = VALUES(name),
-         picture_url = VALUES(picture_url),
-         expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)`,
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now', '+10 minutes'))`,
       [pendingId, googleId, email, name, picture],
     );
 
