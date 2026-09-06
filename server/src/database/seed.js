@@ -18,6 +18,7 @@
 require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
 const Database = require("better-sqlite3");
 const path = require("path");
+const fs = require("fs");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
 
@@ -42,6 +43,11 @@ const ID = {
 
 async function seed() {
   const dbPath = path.resolve(__dirname, "../../data/roomiematch.db");
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
   console.log(`[Seed] Connecting to SQLite database at ${dbPath}...`);
   const db = new Database(dbPath);
   db.pragma("foreign_keys = ON");

@@ -6,6 +6,7 @@
  */
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 let _db = null;
 
@@ -30,6 +31,11 @@ function getDB() {
   if (_db) return _db;
   
   const dbPath = path.resolve(__dirname, '../../data/roomiematch.db');
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
   _db = new Database(dbPath, { verbose: console.log });
   
   // Enable foreign keys

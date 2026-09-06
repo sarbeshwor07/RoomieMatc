@@ -17,8 +17,10 @@ build/
 .env.*.local
 
 # User-uploaded files — NEVER commit personal data
-server/uploads/
-uploads/
+server/uploads/*
+!server/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
 
 # Database files — contain real user data
 server/database.sqlite
@@ -27,6 +29,7 @@ server/*.db
 server/data/*.db
 *.sqlite
 *.db
+!server/data/.gitkeep
 
 # Database backups
 *.backup

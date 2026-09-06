@@ -7,9 +7,15 @@
  */
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 async function migrate() {
   const dbPath = path.resolve(__dirname, '../../data/roomiematch.db');
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
   console.log(`[Migrate] Opening SQLite database at ${dbPath}`);
   
   const db = new Database(dbPath);
