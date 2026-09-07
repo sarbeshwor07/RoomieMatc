@@ -130,7 +130,11 @@ export const Messages = () => {
     <div className="h-[calc(100vh-130px)] max-w-6xl mx-auto bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex overflow-hidden">
 
       {/* ── Thread List Sidebar ─────────────────────────────────────────── */}
-      <div className="w-80 border-r border-outline-variant flex flex-col shrink-0">
+      <div
+        className={`w-full md:w-80 border-r border-outline-variant flex flex-col shrink-0 ${
+          activeThreadId ? "hidden md:flex" : "flex"
+        }`}
+      >
         <div className="p-4 border-b border-outline-variant bg-surface-container-low flex items-center justify-between">
           <h2 className="font-headline-sm text-headline-sm text-on-surface">Messages</h2>
           {/* Socket connection status */}
@@ -147,9 +151,10 @@ export const Messages = () => {
         {/* Contact Support / Admin Banner */}
         <div className="p-3 border-b border-outline-variant bg-primary-container/10">
           <button
+            type="button"
             onClick={handleContactAdmin}
             disabled={connectingAdmin}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-60"
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-60 cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">support_agent</span>
@@ -170,9 +175,10 @@ export const Messages = () => {
               <span className="material-symbols-outlined text-[36px] text-outline">forum</span>
               <p>No active conversations yet.</p>
               <button
+                type="button"
                 onClick={handleContactAdmin}
                 disabled={connectingAdmin}
-                className="px-4 py-2 bg-surface-container-high hover:bg-surface-container border border-outline-variant text-on-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 bg-surface-container-high hover:bg-surface-container border border-outline-variant text-on-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px] text-primary">support_agent</span>
                 Have questions? Message Support
@@ -186,9 +192,10 @@ export const Messages = () => {
               const hasTyping = (typingUsers[thread.id] || []).some(u => u.userId !== currentUser?.id);
               return (
                 <button
+                  type="button"
                   key={thread.id}
                   onClick={() => handleSelectThread(thread.id)}
-                  className={`w-full text-left p-4 flex items-center gap-3 transition-colors ${
+                  className={`w-full text-left p-4 flex items-center gap-3 transition-colors cursor-pointer ${
                     isSel ? "bg-primary-container/20 border-r-4 border-primary" : "hover:bg-surface-container-low"
                   }`}
                 >
@@ -236,20 +243,36 @@ export const Messages = () => {
       </div>
 
       {/* ── Chat Window ─────────────────────────────────────────────────── */}
-      <div className="flex-grow flex flex-col bg-surface">
+      <div
+        className={`flex-grow flex-col bg-surface ${
+          activeThreadId ? "flex" : "hidden md:flex"
+        }`}
+      >
         {activeThread ? (
           <>
             {/* Header */}
-            <div className="px-6 py-3 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="px-4 sm:px-6 py-3 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                {/* Mobile Back button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveThreadId("");
+                    setSearchParams({});
+                  }}
+                  className="md:hidden p-1.5 -ml-1 rounded-full hover:bg-surface-container text-on-surface-variant flex items-center justify-center shrink-0 cursor-pointer"
+                  title="Back to conversations"
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
                 <Avatar
                   src={getRecipient(activeThread)?.profile_image}
                   name={getRecipient(activeThread)?.name}
                   size="md"
                 />
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <h3 className="font-label-md text-label-md text-on-surface font-bold">
+                    <h3 className="font-label-md text-label-md text-on-surface font-bold truncate">
                       {getRecipient(activeThread)?.name || "User"}
                     </h3>
                     {getRecipient(activeThread)?.role === "admin" && (
@@ -282,7 +305,7 @@ export const Messages = () => {
             </div>
 
             {/* Message feed */}
-            <div className="flex-grow p-6 overflow-y-auto space-y-4">
+            <div className="flex-grow p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
               {loadingMessages && displayMessages.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-on-surface-variant gap-2 text-sm">
                   <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
@@ -308,7 +331,7 @@ export const Messages = () => {
                           className="shrink-0 mt-1 mr-2"
                         />
                       )}
-                      <div className={`max-w-[65%] rounded-2xl px-4 py-2.5 shadow-sm ${
+                      <div className={`max-w-[85%] sm:max-w-[65%] rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 shadow-sm ${
                         isMe
                           ? "bg-primary text-on-primary rounded-br-none"
                           : "bg-surface-container-lowest text-on-surface border border-outline-variant/60 rounded-bl-none"
@@ -351,7 +374,7 @@ export const Messages = () => {
                 e.preventDefault();
                 handleSend(e);
               }}
-              className="p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-3"
+              className="p-2.5 sm:p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-2 sm:gap-3"
             >
               <input
                 ref={inputRef}
@@ -360,20 +383,20 @@ export const Messages = () => {
                 onChange={handleInputChange}
                 placeholder={isConnected ? "Type your message..." : "Reconnecting..."}
                 disabled={!isConnected && inputText === ""}
-                className="flex-grow bg-surface-container border border-outline-variant rounded-lg px-4 py-3 text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
+                className="flex-grow bg-surface-container border border-outline-variant rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
               />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={!inputText.trim()}
-                className="py-3 px-5 shrink-0 cursor-pointer"
+                className="py-2.5 sm:py-3 px-3.5 sm:px-5 shrink-0 cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[22px]">send</span>
+                <span className="material-symbols-outlined text-[20px] sm:text-[22px]">send</span>
               </Button>
             </form>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-surface-container-low">
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8 bg-surface-container-low">
             <span className="material-symbols-outlined text-[64px] text-outline mb-4">chat</span>
             <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold">Select a Conversation</h3>
             <p className="text-body-md text-on-surface-variant max-w-sm mt-2">

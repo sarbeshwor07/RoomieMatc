@@ -22,13 +22,13 @@ export const AdminNavbar = () => {
 
   return (
     <header className="admin-navbar bg-surface-container-low border-b border-outline-variant shadow-sm w-full sticky top-0 z-50">
-      <div className="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto">
+      <div className="flex justify-between items-center w-full px-3 sm:px-6 py-2.5 sm:py-4 max-w-screen-2xl mx-auto">
 
         {/* Brand + mode badge */}
-        <Link to="/admin/dashboard" className="flex items-center gap-3 select-none">
-          <img src="/images/logo.png" alt="RoomieMatch" className="h-10 w-auto" />
+        <Link to="/admin/dashboard" className="flex items-center gap-2 sm:gap-3 select-none">
+          <img src="/images/logo.png" alt="RoomieMatch" className="h-8 sm:h-10 w-auto" />
           <div className="flex flex-col leading-tight">
-            <span className="font-headline-lg text-headline-lg font-bold text-primary tracking-tight">
+            <span className="font-headline-lg text-lg sm:text-headline-lg font-bold text-primary tracking-tight">
               RoomieMatch
             </span>
             <span className="text-[10px] font-bold uppercase tracking-widest text-error">
@@ -38,7 +38,7 @@ export const AdminNavbar = () => {
         </Link>
 
         {/* Right-side actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Theme Toggle */}
           <ThemeToggle />
 
@@ -72,7 +72,7 @@ export const AdminNavbar = () => {
 
           {/* Admin user info + logout */}
           {currentUser && (
-            <div className="flex items-center gap-3 border-l border-outline-variant pl-4">
+            <div className="flex items-center gap-2 sm:gap-3 border-l border-outline-variant pl-2 sm:pl-4">
               <Avatar src={currentUser.avatar} name={currentUser.name} size="sm" />
               <div className="hidden lg:flex flex-col leading-tight">
                 <span className="font-label-md text-label-md text-on-surface">
@@ -83,8 +83,9 @@ export const AdminNavbar = () => {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => { logout(); navigate("/"); }}
-                className="text-outline hover:text-error transition-colors p-1"
+                className="text-outline hover:text-error transition-colors p-1 cursor-pointer"
                 title="Logout"
               >
                 <span className="material-symbols-outlined">logout</span>

@@ -246,7 +246,11 @@ export const AdminMessages = () => {
     <div className="h-[calc(100vh-130px)] max-w-7xl mx-auto bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-sm flex overflow-hidden">
 
       {/* ── Left Sidebar: Conversation List ─────────────────────────── */}
-      <div className="w-80 md:w-96 border-r border-outline-variant flex flex-col shrink-0 bg-surface-container-low/40">
+      <div
+        className={`w-full md:w-80 lg:w-96 border-r border-outline-variant flex flex-col shrink-0 bg-surface-container-low/40 ${
+          activeThreadId ? "hidden md:flex" : "flex"
+        }`}
+      >
         <div className="p-4 border-b border-outline-variant bg-surface-container-low space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -274,6 +278,7 @@ export const AdminMessages = () => {
           {/* Action buttons: New Chat & Broadcast */}
           <div className="grid grid-cols-2 gap-2">
             <button
+              type="button"
               onClick={() => setIsNewChatOpen(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all shadow-sm active:scale-95 cursor-pointer"
             >
@@ -281,6 +286,7 @@ export const AdminMessages = () => {
               + New Chat
             </button>
             <button
+              type="button"
               onClick={() => setIsBroadcastOpen(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all active:scale-95 cursor-pointer"
             >
@@ -303,8 +309,9 @@ export const AdminMessages = () => {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[14px]">close</span>
               </button>
@@ -350,6 +357,7 @@ export const AdminMessages = () => {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleStartChatWithUser(u)}
                         disabled={isStarting}
                         className="px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold hover:bg-primary/90 shrink-0 transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
@@ -400,9 +408,10 @@ export const AdminMessages = () => {
               );
               return (
                 <button
+                  type="button"
                   key={thread.id}
                   onClick={() => handleSelectThread(thread.id)}
-                  className={`w-full text-left p-4 flex items-center gap-3 transition-colors ${
+                  className={`w-full text-left p-4 flex items-center gap-3 transition-colors cursor-pointer ${
                     isSel
                       ? "bg-primary-container/25 border-r-4 border-primary"
                       : "hover:bg-surface-container-low"
@@ -467,32 +476,48 @@ export const AdminMessages = () => {
       </div>
 
       {/* ── Right: Chat Window ───────────────────────────────────────── */}
-      <div className="flex-grow flex flex-col bg-surface">
+      <div
+        className={`flex-grow flex-col bg-surface ${
+          activeThreadId ? "flex" : "hidden md:flex"
+        }`}
+      >
         {activeThread ? (
           <>
             {/* Header */}
-            <div className="px-6 py-3 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+            <div className="px-3 sm:px-6 py-2.5 sm:py-3 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                {/* Mobile Back button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveThreadId("");
+                    setSearchParams({});
+                  }}
+                  className="md:hidden p-1.5 -ml-1 rounded-full hover:bg-surface-container text-on-surface-variant flex items-center justify-center shrink-0 cursor-pointer"
+                  title="Back to conversations"
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
                 <Avatar src={recipient?.profile_image} name={recipient?.name} size="md" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-on-surface">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h3 className="text-sm font-bold text-on-surface truncate">
                       {recipient?.name || "Client"}
                     </h3>
-                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container">
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">
                       {recipient?.role || "User"}
                     </span>
                   </div>
                   {activeTypers.length > 0 ? (
                     <span className="text-xs text-primary font-semibold italic">typing...</span>
                   ) : (
-                    <span className="text-xs text-outline">ID: {recipient?.id?.substring(0, 8)}...</span>
+                    <span className="text-xs text-outline truncate block">ID: {recipient?.id?.substring(0, 8)}...</span>
                   )}
                 </div>
               </div>
 
               {/* Quick links: Property details & User profile */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {activeThread.property && (
                   <Link
                     to={`/admin/properties/${activeThread.property.id}`}
@@ -506,18 +531,18 @@ export const AdminMessages = () => {
                 {recipient?.id && (
                   <Link
                     to={`/admin/users/${recipient.id}`}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary-container/20 text-xs font-bold transition-colors"
+                    className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary-container/20 text-xs font-bold transition-colors"
                     title="View User Management Profile"
                   >
                     <span className="material-symbols-outlined text-[15px]">person</span>
-                    User Profile
+                    <span className="hidden xs:inline">User Profile</span>
                   </Link>
                 )}
               </div>
             </div>
 
             {/* Message Feed */}
-            <div className="flex-grow p-6 overflow-y-auto space-y-4">
+            <div className="flex-grow p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
               {loadingMessages && activeMessages.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-on-surface-variant gap-2 text-sm">
                   <span className="material-symbols-outlined text-[18px] animate-spin text-primary">
@@ -550,7 +575,7 @@ export const AdminMessages = () => {
                         />
                       )}
                       <div
-                        className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm ${
+                        className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 shadow-sm ${
                           isMe
                             ? "bg-primary text-on-primary rounded-br-none"
                             : "bg-surface-container-lowest text-on-surface border border-outline-variant/70 rounded-bl-none"
@@ -607,7 +632,7 @@ export const AdminMessages = () => {
                 e.preventDefault();
                 handleSend(e);
               }}
-              className="p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-3"
+              className="p-2.5 sm:p-4 border-t border-outline-variant bg-surface-container-lowest flex items-center gap-2 sm:gap-3"
             >
               <input
                 ref={inputRef}
@@ -616,20 +641,20 @@ export const AdminMessages = () => {
                 onChange={handleInputChange}
                 placeholder={isConnected ? "Type a message as Administrator..." : "Reconnecting socket..."}
                 disabled={!isConnected && inputText === ""}
-                className="flex-grow bg-surface-container border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
+                className="flex-grow bg-surface-container border border-outline-variant rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary outline-none disabled:opacity-60"
               />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={!inputText.trim()}
-                className="py-3 px-5 shrink-0 rounded-xl cursor-pointer"
+                className="py-2.5 sm:py-3 px-3.5 sm:px-5 shrink-0 rounded-xl cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">send</span>
               </Button>
             </form>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-surface-container-low/20">
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8 bg-surface-container-low/20">
             <span className="material-symbols-outlined text-[64px] text-outline mb-3">chat</span>
             <h3 className="text-lg font-bold text-on-surface">Select a Client Conversation</h3>
             <p className="text-sm text-on-surface-variant max-w-sm mt-1">

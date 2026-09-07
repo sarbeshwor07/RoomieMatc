@@ -33,7 +33,7 @@ export const UserLayout = () => {
       <Navbar />
       <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
         <UserSidebar />
-        <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }} className="bg-surface p-6">
+        <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }} className="bg-surface p-2 sm:p-4 md:p-6">
           <Outlet />
         </main>
       </div>

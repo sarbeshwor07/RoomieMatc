@@ -16,15 +16,15 @@ export const Navbar = () => {
 
   return (
     <header className="bg-surface border-b border-outline-variant shadow-sm w-full sticky top-0 z-50 transition-colors duration-300">
-      <div className="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center w-full px-3 sm:px-6 py-2.5 sm:py-4 max-w-7xl mx-auto">
 
         {/* Brand */}
         <Link
           to={currentUser ? "/user/dashboard" : "/"}
           className="flex items-center gap-2 select-none"
         >
-          <img src="/images/logo.png" alt="RoomieMatch" className="h-10 w-auto" />
-          <span className="font-headline-lg text-headline-lg font-bold text-primary tracking-tight">
+          <img src="/images/logo.png" alt="RoomieMatch" className="h-8 sm:h-10 w-auto" />
+          <span className="font-headline-lg text-lg sm:text-headline-lg font-bold text-primary tracking-tight">
             RoomieMatch
           </span>
         </Link>
@@ -56,12 +56,12 @@ export const Navbar = () => {
         )}
 
         {/* Right-side actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Theme Toggle */}
           <ThemeToggle />
 
           {currentUser && (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-4">
               {/* Contact Admin Support */}
               <Link
                 to="/user/messages?contact=admin"
@@ -85,14 +85,15 @@ export const Navbar = () => {
               </Link>
 
               {/* User info + logout */}
-              <div className="flex items-center gap-3 border-l border-outline-variant pl-4">
+              <div className="flex items-center gap-2 sm:gap-3 border-l border-outline-variant pl-2 sm:pl-4">
                 <Avatar src={currentUser.avatar} name={currentUser.name} size="sm" />
                 <span className="hidden lg:inline font-label-md text-label-md text-on-surface">
                   {currentUser.name}
                 </span>
                 <button
+                  type="button"
                   onClick={() => { logout(); navigate("/"); }}
-                  className="text-outline hover:text-error transition-colors p-1"
+                  className="text-outline hover:text-error transition-colors p-1 cursor-pointer"
                   title="Logout"
                 >
                   <span className="material-symbols-outlined">logout</span>
