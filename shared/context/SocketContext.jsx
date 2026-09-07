@@ -269,11 +269,13 @@ export const SocketProvider = ({ children }) => {
     }
   }, []);
 
-  // ── Auto-refresh: Poll active conversation messages silently every 3s ────────
+  // ── Auto-refresh: Poll active conversation messages silently ────────────
   useEffect(() => {
     if (!activeConvId || !currentUser) return;
 
     const pollActiveMessages = async () => {
+      // Don't poll if the browser tab is hidden/minimized
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const data = await apiGetMessages(activeConvId);
         if (data?.messages && Array.isArray(data.messages)) {
@@ -293,15 +295,18 @@ export const SocketProvider = ({ children }) => {
       }
     };
 
-    const timer = setInterval(pollActiveMessages, 3000);
+    // If socket is connected, 8s safety net is sufficient; if disconnected, poll every 4s
+    const intervalMs = isConnected ? 8000 : 4000;
+    const timer = setInterval(pollActiveMessages, intervalMs);
     return () => clearInterval(timer);
-  }, [activeConvId, currentUser]);
+  }, [activeConvId, currentUser, isConnected]);
 
-  // ── Auto-refresh: Poll conversation threads list silently every 6s ─────────
+  // ── Auto-refresh: Poll conversation threads list silently ──────────────────
   useEffect(() => {
     if (!currentUser) return;
 
     const pollConversations = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const data = await apiListConversations();
         if (data?.conversations && Array.isArray(data.conversations)) {
@@ -322,7 +327,7 @@ export const SocketProvider = ({ children }) => {
       }
     };
 
-    const timer = setInterval(pollConversations, 6000);
+    const timer = setInterval(pollConversations, 15000);
     return () => clearInterval(timer);
   }, [currentUser]);
 

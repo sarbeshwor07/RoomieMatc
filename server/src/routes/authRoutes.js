@@ -26,18 +26,18 @@ const { requireAuth } = require("../middleware/auth");
 
 // ── Rate limiters ──────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 20,
-  message: { error: "Too many requests. Please try again later." },
+  windowMs: 15 * 60 * 1000, max: 100,
+  message: { error: "Too many authentication requests. Please try again later." },
   standardHeaders: true, legacyHeaders: false
 });
 
 const otpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, max: 10,
+  windowMs: 5 * 60 * 1000, max: 30,
   message: { error: "Too many OTP attempts. Please wait and try again." }
 });
 
 const passwordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 5,
+  windowMs: 15 * 60 * 1000, max: 20,
   message: { error: "Too many password reset requests. Please try again later." }
 });
 

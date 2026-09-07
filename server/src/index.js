@@ -93,22 +93,24 @@ app.use(helmet({
 }));
 
 // ── Rate Limiters (Firewall Protection) ─────────────────────────────────────
-// 1. General API rate limiter: max 300 requests per 15 minutes per IP
+// General API rate limiter: generous limit (10,000 reqs/15m) allowing multiple users on same IP/network
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 10000,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Never throttle preflight, polling, or real-time endpoints
+    if (req.method === "OPTIONS") return true;
+    const url = req.originalUrl || req.url || "";
+    return (
+      url.includes("/messages") ||
+      url.includes("/notifications") ||
+      url.includes("/uploads") ||
+      url.includes("/auth/me")
+    );
+  },
   message: { error: "Too many requests from this IP. Please try again in 15 minutes." },
-});
-
-// 2. Auth rate limiter: max 25 attempts per 15 minutes per IP to prevent brute-force attacks
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 25,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many authentication attempts from this IP. Please try again in 15 minutes." },
 });
 
 // ── CORS ───────────────────────────────────────────────────────────────────
@@ -127,7 +129,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ── Apply rate limits ──────────────────────────────────────────────────────
-app.use("/api/auth", authLimiter);
 app.use("/api", generalLimiter);
 
 // ── Static file serving ────────────────────────────────────────────────────
